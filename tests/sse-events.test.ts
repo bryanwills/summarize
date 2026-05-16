@@ -1,5 +1,21 @@
 import { describe, expect, it } from "vitest";
+import { parseSseStream } from "../apps/chrome-extension/src/lib/sse.js";
 import { encodeSseEvent, parseSseEvent, type SseEvent } from "../src/shared/sse-events.js";
+
+async function collectSse(input: string) {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(input));
+      controller.close();
+    },
+  });
+  const events = [];
+  for await (const event of parseSseStream(stream)) {
+    events.push(event);
+  }
+  return events;
+}
 
 describe("sse events", () => {
   it("encodes and parses known events", () => {
@@ -81,5 +97,17 @@ describe("sse events", () => {
 
   it("ignores unknown events", () => {
     expect(parseSseEvent({ event: "unknown", data: "{}" })).toBeNull();
+  });
+
+  it("flushes a final SSE event at EOF without a blank delimiter", async () => {
+    await expect(collectSse("event: done\ndata: {}")).resolves.toEqual([
+      { event: "done", data: "{}" },
+    ]);
+  });
+
+  it("flushes a final SSE event at EOF with only a trailing newline", async () => {
+    await expect(collectSse("event: done\ndata: {}\n")).resolves.toEqual([
+      { event: "done", data: "{}" },
+    ]);
   });
 });

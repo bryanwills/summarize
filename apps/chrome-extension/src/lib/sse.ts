@@ -18,6 +18,24 @@ export async function* parseSseStream(
     return data ? ({ event: evt, data } as const) : null;
   };
 
+  const processLine = (line: string): SseMessage | null => {
+    if (line === "") {
+      return flush();
+    }
+
+    if (line.startsWith(":")) {
+      return { event: "__comment__", data: line.slice(1).trim() };
+    }
+    if (line.startsWith("event:")) {
+      currentEvent = line.slice("event:".length).trim() || "message";
+      return null;
+    }
+    if (line.startsWith("data:")) {
+      currentData += `${line.slice("data:".length).trim()}\n`;
+    }
+    return null;
+  };
+
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -30,23 +48,16 @@ export async function* parseSseStream(
       buffer = buffer.slice(idx + 1);
       const line = rawLine.replace(/\r$/, "");
 
-      if (line === "") {
-        const msg = flush();
-        if (msg) yield msg;
-        continue;
-      }
-
-      if (line.startsWith(":")) {
-        yield { event: "__comment__", data: line.slice(1).trim() };
-        continue;
-      }
-      if (line.startsWith("event:")) {
-        currentEvent = line.slice("event:".length).trim() || "message";
-        continue;
-      }
-      if (line.startsWith("data:")) {
-        currentData += `${line.slice("data:".length).trim()}\n`;
-      }
+      const msg = processLine(line);
+      if (msg) yield msg;
     }
   }
+
+  buffer += decoder.decode();
+  if (buffer) {
+    const msg = processLine(buffer.replace(/\r$/, ""));
+    if (msg) yield msg;
+  }
+  const msg = flush();
+  if (msg) yield msg;
 }
