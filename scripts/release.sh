@@ -35,10 +35,35 @@ require_lockstep_versions() {
   fi
 }
 
+write_release_notes() {
+  local version notes_file
+  version="$1"
+  notes_file="$2"
+  awk -v start="$version" '
+    BEGIN { p=0 }
+    $0 ~ ("^## " start "([ -]|$)") { p=1; next }
+    p && $0 ~ /^## / { exit }
+    p { print }
+  ' CHANGELOG.md >"${notes_file}"
+  if ! grep -q '[^[:space:]]' "${notes_file}"; then
+    echo "Missing CHANGELOG.md notes for ${version}"
+    exit 1
+  fi
+}
+
+phase_release_notes_preflight() {
+  local version notes_file
+  version="$(node -p 'require("./package.json").version')"
+  notes_file="$(mktemp)"
+  write_release_notes "${version}" "${notes_file}"
+  rm -f "${notes_file}"
+}
+
 phase_gates() {
   banner "Gates"
   require_clean_git
   require_lockstep_versions
+  phase_release_notes_preflight
   run pnpm check
 }
 
@@ -146,22 +171,6 @@ phase_tag() {
   version="$(node -p 'require("./package.json").version')"
   run git tag -a "v${version}" -m "v${version}"
   run git push --tags
-}
-
-write_release_notes() {
-  local version notes_file
-  version="$1"
-  notes_file="$2"
-  awk -v start="$version" '
-    BEGIN { p=0 }
-    $0 ~ ("^## " start "([ -]|$)") { p=1; next }
-    p && $0 ~ /^## / { exit }
-    p { print }
-  ' CHANGELOG.md >"${notes_file}"
-  if ! grep -q '[^[:space:]]' "${notes_file}"; then
-    echo "Missing CHANGELOG.md notes for ${version}"
-    exit 1
-  fi
 }
 
 phase_github() {
