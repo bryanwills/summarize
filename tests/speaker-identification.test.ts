@@ -16,7 +16,9 @@ import type { TranscriptSegment } from "../packages/core/src/content/link-previe
 import { hashJson } from "../src/cache-keys.js";
 import { loadSummarizeConfig } from "../src/config.js";
 import {
+  buildSpeakerEvidence,
   identifySpeakersInExtractedContent,
+  inferSpeakerMappingsWithOpenAi,
   parseSpeakerAnchor,
   rememberSpeakerMappings,
   resolveSpeakerIdentificationSettings,
@@ -212,6 +214,154 @@ describe("speaker identification settings", () => {
 });
 
 describe("speaker identification", () => {
+  it("keeps evidence from later speakers when an opening turn exceeds the budget", () => {
+    const evidence = buildSpeakerEvidence([
+      { startMs: 0, endMs: 1_000, text: "A".repeat(30_000), speaker: "Speaker 1" },
+      { startMs: 1_000, endMs: 2_000, text: "Later speaker evidence", speaker: "Speaker 2" },
+    ]);
+
+    expect(evidence.join("\n").length).toBeLessThanOrEqual(24_000);
+    expect(evidence.some((line) => line.includes("Speaker 2: Later speaker evidence"))).toBe(true);
+  });
+
+  it("uses the remaining evidence budget for a single long turn", () => {
+    const evidence = buildSpeakerEvidence([
+      {
+        startMs: 0,
+        endMs: 1_000,
+        text: `${"A".repeat(10_000)} identifying clue`,
+        speaker: "Speaker 1",
+      },
+    ]);
+
+    expect(evidence.join("\n").length).toBeGreaterThan(10_000);
+    expect(evidence.at(-1)).toContain("identifying clue");
+  });
+
+  it("rotates across sampled turns from the same speaker", () => {
+    const evidence = buildSpeakerEvidence([
+      { startMs: 0, endMs: 1_000, text: "A".repeat(30_000), speaker: "Speaker 1" },
+      {
+        startMs: 10_000,
+        endMs: 11_000,
+        text: "Later self-identification clue",
+        speaker: "Speaker 1",
+      },
+    ]);
+
+    expect(evidence.join("\n").length).toBeLessThanOrEqual(24_000);
+    expect(evidence.join("\n")).toContain("Later self-identification clue");
+  });
+
+  it("caps normalized evidence after scanning collapsible whitespace", () => {
+    const evidence = buildSpeakerEvidence([
+      {
+        startMs: 0,
+        endMs: 1_000,
+        text: `Introduction${" ".repeat(30_000)}I am Alice`,
+        speaker: "Speaker 1",
+      },
+    ]);
+
+    expect(evidence.join("\n")).toContain("Introduction I am Alice");
+  });
+
+  it("resumes a partially selected evidence chunk", () => {
+    const evidence = buildSpeakerEvidence([
+      {
+        startMs: 0,
+        endMs: 1_000,
+        text: `${"A".repeat(3_500)} identifying clue`,
+        speaker: "Speaker 1",
+      },
+      ...Array.from({ length: 7 }, (_, index) => ({
+        startMs: 1_000 + index,
+        endMs: 2_000 + index,
+        text: `Brief evidence ${index}`,
+        speaker: `Speaker ${index + 2}`,
+      })),
+    ]);
+
+    expect(evidence.join("\n")).toContain("identifying clue");
+  });
+
+  it("bounds malformed speaker labels before building evidence lines", () => {
+    const evidence = buildSpeakerEvidence([
+      {
+        startMs: 0,
+        endMs: 1_000,
+        text: "identifying clue",
+        speaker: "S".repeat(10_000),
+      },
+    ]);
+
+    expect(evidence).toHaveLength(1);
+    expect(evidence[0]!.length).toBeLessThanOrEqual(4_000);
+    expect(evidence[0]).toContain("identifying clue");
+  });
+
+  it("keeps distinct raw speaker labels separate in evidence", () => {
+    const evidence = buildSpeakerEvidence([
+      { startMs: 0, endMs: 1_000, text: "First clue", speaker: "Speaker  1" },
+      { startMs: 1_000, endMs: 2_000, text: "Second clue", speaker: "Speaker\t1" },
+    ]);
+
+    expect(evidence).toHaveLength(2);
+    expect(evidence[0]).toContain("Speaker  1: First clue");
+    expect(evidence[1]).toContain('label[2]="Speaker\\t1": Second clue');
+  });
+
+  it("omits GPT-5-only request options for other OpenAI models", async () => {
+    let requestBody: Record<string, unknown> | null = null;
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(JSON.stringify({ output_text: '{"mappings":[]}' }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    await inferSpeakerMappingsWithOpenAi({
+      segments,
+      unresolvedSpeakers: ["Speaker 1", "Speaker 2"],
+      anchoredMappings: {},
+      title: "Episode",
+      description: null,
+      sourceUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+      settings: settings({ model: "openai/gpt-4.1" }),
+      apiKey: "test-key",
+      baseUrl: null,
+      timeoutMs: 1_000,
+      fetchImpl,
+    });
+
+    expect(requestBody).not.toHaveProperty("reasoning");
+    expect(requestBody).not.toHaveProperty("text.verbosity");
+    expect(requestBody).toHaveProperty("text.format.type", "json_schema");
+  });
+
+  it("keeps low reasoning without GPT-5 verbosity for o-series models", async () => {
+    let requestBody: Record<string, unknown> | null = null;
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(JSON.stringify({ output_text: '{"mappings":[]}' }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    await inferSpeakerMappingsWithOpenAi({
+      segments,
+      unresolvedSpeakers: ["Speaker 1", "Speaker 2"],
+      anchoredMappings: {},
+      title: "Episode",
+      description: null,
+      sourceUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+      settings: settings({ model: "openai/o4-mini" }),
+      apiKey: "test-key",
+      baseUrl: null,
+      timeoutMs: 1_000,
+      fetchImpl,
+    });
+
+    expect(requestBody).toHaveProperty("reasoning.effort", "low");
+    expect(requestBody).not.toHaveProperty("text.verbosity");
+  });
+
   it("uses authoritative anchors before OpenAI context inference", async () => {
     const inferMappings = vi.fn(async (input) => {
       expect(input.unresolvedSpeakers).toEqual(["Speaker 2"]);
