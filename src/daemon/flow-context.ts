@@ -1,4 +1,5 @@
 import { Writable } from "node:stream";
+import { createRunModelRuntime, resolveRunModelSpec } from "../application/model-runtime.js";
 import type { CacheState } from "../cache.js";
 import type { SummarizeConfig } from "../config.js";
 import type {
@@ -7,18 +8,11 @@ import type {
   MediaCache,
 } from "../content/index.js";
 import type { SummaryStreamHandler } from "../engine/events.js";
-import { createModelExecutor } from "../engine/model-executor.js";
 import type { ExecFileFn } from "../markitdown.js";
-import type { FixedModelSpec } from "../model-spec.js";
 import { execFileTracked } from "../processes.js";
 import { createRunFlowContexts } from "../run/flow-contexts.js";
 import type { UrlFlowContext } from "../run/flows/url/types.js";
-import { resolveProviderRuntimeBindings } from "../run/provider-runtime.js";
-import { resolveRunApiStatus } from "../run/run-api-status.js";
 import { resolveRunContextState } from "../run/run-context.js";
-import { createRunMetrics } from "../run/run-metrics.js";
-import { resolveModelSelection } from "../run/run-models.js";
-import { resolveDesiredOutputTokens } from "../run/run-output.js";
 import {
   buildPromptLengthInstruction,
   createEmptyRunOverrides,
@@ -186,23 +180,24 @@ export function createDaemonUrlFlowContext(args: DaemonUrlFlowContextArgs): UrlF
     openaiWhisperUsdPerMinute,
     videoMode,
     embeddedVideoMode,
-    cliConfigForRun,
     configForCli,
     openaiUseChatCompletions,
     configModelLabel,
     cliAvailability,
     envForAuto,
   } = runContext;
-  const apiStatus = resolveRunApiStatus(runContext);
-  const providerRuntime = resolveProviderRuntimeBindings({
-    env: envForRun,
-    envState: runContext,
-    configForCli,
-  });
   const configForCliWithMagic = applyAutoCliFallbackOverrides(configForCli, resolvedOverrides);
   const allowAutoCliFallback = resolvedOverrides.autoCliFallbackEnabled === true;
   const { lengthArg } = resolveSummaryLength(lengthRaw, config?.output?.length ?? "long");
-
+  const maxOutputTokensArg = resolvedOverrides.maxOutputTokensArg;
+  const modelSpec = resolveRunModelSpec({
+    context: runContext,
+    envForRun,
+    explicitModelArg: modelOverride?.trim() ? modelOverride.trim() : null,
+    configForSelection: configForCliWithMagic,
+    lengthArg,
+    maxOutputTokensArg,
+  });
   const {
     requestedModel,
     requestedModelInput,
@@ -212,20 +207,9 @@ export function createDaemonUrlFlowContext(args: DaemonUrlFlowContextArgs): UrlF
     wantsFreeNamedModel,
     configForModelSelection,
     isFallbackModel,
-  } = resolveModelSelection({
-    config,
-    configForCli: configForCliWithMagic,
-    configPath,
-    envForRun,
-    explicitModelArg: modelOverride?.trim() ? modelOverride.trim() : null,
-  });
-
-  const fixedModelSpec: FixedModelSpec | null =
-    requestedModel.kind === "fixed" ? requestedModel : null;
-  const maxOutputTokensArg = resolvedOverrides.maxOutputTokensArg;
-  const desiredOutputTokens = resolveDesiredOutputTokens({ lengthArg, maxOutputTokensArg });
-
-  const metrics = createRunMetrics({ env: envForRun, fetchImpl, maxOutputTokensArg });
+    fixedModelSpec,
+    desiredOutputTokens,
+  } = modelSpec;
 
   const stdout = createWritableFromTextSink(stdoutSink);
   const stderr = process.stderr;
@@ -238,22 +222,19 @@ export function createDaemonUrlFlowContext(args: DaemonUrlFlowContextArgs): UrlF
   const preprocessMode = resolvedOverrides.preprocessMode ?? "auto";
   const youtubeMode = resolvedOverrides.youtubeMode ?? "auto";
 
-  const summaryEngine = createModelExecutor({
+  const modelRuntime = createRunModelRuntime({
+    context: runContext,
     env: envForRun,
     envForRun,
+    metricsEnv: envForRun,
+    fetchImpl,
     execFileImpl: execFileTracked as unknown as ExecFileFn,
+    maxOutputTokensArg,
     timeoutMs,
     retries,
     streamingEnabled: true,
-    cliConfigForRun: cliConfigForRun ?? null,
-    cliAvailability,
-    trackedFetch: metrics.trackedFetch,
-    resolveMaxOutputTokensForCall: metrics.resolveMaxOutputTokensForCall,
-    resolveMaxInputTokensForCall: metrics.resolveMaxInputTokensForCall,
-    llmCalls: metrics.llmCalls,
-    providerRuntime,
-    openrouterApiKey: apiStatus.openrouterApiKey,
   });
+  const { apiStatus, summaryEngine, metrics } = modelRuntime;
   const summaryStream = createDaemonSummaryStreamHandler(stdoutSink);
 
   const outputLanguage = resolveOutputLanguageSetting({

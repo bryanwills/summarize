@@ -1,0 +1,50 @@
+import { describe, expect, it, vi } from "vitest";
+import { createRunModelRuntime, resolveRunModelSpec } from "../src/application/model-runtime.js";
+import { resolveRunContextState } from "../src/run/run-context.js";
+
+describe("application model runtime", () => {
+  it("resolves model intent separately from process resources", () => {
+    const env = { OPENAI_API_KEY: "openai-key" };
+    const context = resolveRunContextState({
+      env,
+      envForRun: env,
+      programOpts: { videoMode: "auto", embeddedVideo: "auto" },
+      languageExplicitlySet: false,
+      videoModeExplicitlySet: false,
+      embeddedVideoExplicitlySet: false,
+      cliFlagPresent: false,
+      cliProviderArg: null,
+    });
+
+    const spec = resolveRunModelSpec({
+      context,
+      envForRun: env,
+      explicitModelArg: "openai/gpt-5.4",
+      configForSelection: context.configForCli,
+      lengthArg: { kind: "preset", preset: "medium" },
+      maxOutputTokensArg: null,
+    });
+    const runtime = createRunModelRuntime({
+      context,
+      env,
+      envForRun: env,
+      metricsEnv: env,
+      fetchImpl: vi.fn() as unknown as typeof fetch,
+      execFileImpl: vi.fn(),
+      maxOutputTokensArg: null,
+      timeoutMs: 1_000,
+      retries: 1,
+      streamingEnabled: false,
+    });
+
+    expect(spec.requestedModel).toMatchObject({
+      kind: "fixed",
+      userModelId: "openai/gpt-5.4",
+    });
+    expect(spec.fixedModelSpec).toBe(spec.requestedModel);
+    expect(spec.desiredOutputTokens).toBeGreaterThan(0);
+    expect(runtime.apiStatus.apiKey).toBe("openai-key");
+    expect(runtime.summaryEngine.envHasKeyFor("OPENAI_API_KEY")).toBe(true);
+    expect(runtime.metrics.llmCalls).toEqual([]);
+  });
+});

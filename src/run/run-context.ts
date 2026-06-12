@@ -1,6 +1,8 @@
 import type { CliProvider } from "../config.js";
-import { resolveConfigState } from "./run-config.js";
-import { resolveEnvState } from "./run-env.js";
+import { resolveConfigState, type ConfigState } from "./run-config.js";
+import { resolveEnvState, type EnvState } from "./run-env.js";
+
+export type RunContextState = ConfigState & EnvState;
 
 export function resolveRunContextState({
   env,
@@ -20,7 +22,7 @@ export function resolveRunContextState({
   embeddedVideoExplicitlySet: boolean;
   cliFlagPresent: boolean;
   cliProviderArg: CliProvider | null;
-}) {
+}): RunContextState {
   const configState = resolveConfigState({
     envForRun,
     programOpts,
