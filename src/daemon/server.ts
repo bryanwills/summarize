@@ -1,12 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { promises as fs } from "node:fs";
 import http from "node:http";
 import path from "node:path";
-import { Writable } from "node:stream";
 import { loadSummarizeConfig } from "../config.js";
 import { createDaemonLogger } from "../logging/daemon.js";
 import { setProcessObserver } from "../processes.js";
-import { refreshFree } from "../refresh-free.js";
 import { createCacheStateFromConfig } from "../run/cache-state.js";
 import { resolveExecutableInPath } from "../run/env.js";
 import { createMediaCacheFromConfig } from "../run/media-cache-state.js";
@@ -19,9 +16,10 @@ import { ProcessRegistry } from "./process-registry.js";
 import { handleAdminRoutes } from "./server-admin-routes.js";
 import { handleAgentRoute } from "./server-agent-route.js";
 import { corsHeaders, json, readBearerToken, readCorsHeaders, text } from "./server-http.js";
+import { handleRefreshFreeRoute } from "./server-refresh-route.js";
 import { DaemonRuntime, resolveDaemonMaxActiveSummaries } from "./server-runtime.js";
 import { handleSessionRoutes } from "./server-session-routes.js";
-import { createSession, endSession, pushToSession, type SessionEvent } from "./server-session.js";
+import type { SessionEvent } from "./server-session.js";
 import { handleSummarizeRoute } from "./server-summarize-route.js";
 import { isWindowsContainerEnvironment } from "./windows-container.js";
 
@@ -34,29 +32,6 @@ export function resolveDaemonListenHost(env: Record<string, string | undefined>)
   return process.platform === "win32" && isWindowsContainerEnvironment(env)
     ? "0.0.0.0"
     : DAEMON_HOST;
-}
-
-function createLineWriter(onLine: (line: string) => void) {
-  let buffer = "";
-  return new Writable({
-    write(chunk, _encoding, callback) {
-      buffer += chunk.toString();
-      let index = buffer.indexOf("\n");
-      while (index >= 0) {
-        const line = buffer.slice(0, index).trimEnd();
-        buffer = buffer.slice(index + 1);
-        if (line.trim().length > 0) onLine(line);
-        index = buffer.indexOf("\n");
-      }
-      callback();
-    },
-    final(callback) {
-      const line = buffer.trim();
-      if (line) onLine(line);
-      buffer = "";
-      callback();
-    },
-  });
 }
 
 function resolveToolPath(
@@ -191,38 +166,19 @@ export async function runDaemonServer({
         return;
       }
 
-      if (req.method === "POST" && pathname === "/v1/refresh-free") {
-        if (runtime.activeRefreshSessionId) {
-          json(res, 200, { ok: true, id: runtime.activeRefreshSessionId, running: true }, cors);
-          return;
-        }
-
-        const session = createSession(() => randomUUID());
-        runtime.registerRefreshSession(session);
-        json(res, 200, { ok: true, id: session.id }, cors);
-
-        void (async () => {
-          const pushStatus = (text: string) => {
-            pushToSession(session, { event: "status", data: { text } }, onSessionEvent);
-          };
-          try {
-            pushStatus("Refresh free: starting…");
-            const stdout = createLineWriter(pushStatus);
-            const stderr = createLineWriter(pushStatus);
-            await refreshFree({ env, fetchImpl, stdout, stderr });
-            pushToSession(session, { event: "done", data: {} }, onSessionEvent);
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            pushToSession(session, { event: "error", data: { message } }, onSessionEvent);
-            console.error("[summarize-daemon] refresh-free failed", error);
-          } finally {
-            runtime.finishRefreshSession(session.id);
-            setTimeout(() => {
-              refreshSessions.delete(session.id);
-              endSession(session);
-            }, 60_000).unref();
-          }
-        })();
+      if (
+        await handleRefreshFreeRoute({
+          req,
+          res,
+          pathname,
+          cors,
+          env,
+          fetchImpl,
+          runtime,
+          createSessionId: randomUUID,
+          onSessionEvent,
+        })
+      ) {
         return;
       }
 
