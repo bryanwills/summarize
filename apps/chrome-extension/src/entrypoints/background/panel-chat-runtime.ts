@@ -1,6 +1,7 @@
 import type { BgToPanel, PanelCachePayload, PanelToBg } from "../../lib/panel-contracts";
 import type { Settings } from "../../lib/settings";
-import { ensureChatExtract, type CachedExtract } from "./extract-cache";
+import { createCachedExtract, type CachedExtract } from "./cached-extract";
+import { ensureChatExtract } from "./extract-cache";
 import { handlePanelAgentRequest, handlePanelChatHistoryRequest } from "./panel-chat";
 import { buildSlidesText } from "./panel-utils";
 
@@ -20,10 +21,6 @@ type PanelChatSession = {
 
 type ChatTarget = { ok: true; settings: Settings; tab: ChatTab } | { ok: false; error: string };
 
-function countWords(text: string): number {
-  return text.split(/\s+/).filter(Boolean).length;
-}
-
 function createPanelCachedExtract({
   cache,
   tab,
@@ -34,29 +31,30 @@ function createPanelCachedExtract({
   transcript: string | null;
 }): CachedExtract {
   const text = transcript ?? cache.summaryMarkdown ?? tab.title ?? cache.url ?? tab.url;
-  return {
-    url: cache.url,
-    title: cache.title,
-    text,
-    source: "url",
-    truncated: false,
-    totalCharacters: text.length,
-    wordCount: countWords(text),
-    media: {
-      hasVideo: true,
-      hasAudio: true,
-      hasCaptions: Boolean(transcript),
+  return createCachedExtract({
+    extracted: {
+      url: cache.url,
+      title: cache.title,
+      text,
+      truncated: false,
+      media: {
+        hasVideo: true,
+        hasAudio: true,
+        hasCaptions: Boolean(transcript),
+      },
     },
-    transcriptSource: transcript ? "browser" : null,
-    transcriptionProvider: null,
-    transcriptCharacters: transcript?.length ?? null,
-    transcriptWordCount: transcript?.split(/\s+/).filter(Boolean).length ?? null,
-    transcriptLines: transcript?.split(/\r?\n/).filter(Boolean).length ?? null,
-    transcriptTimedText: transcript,
-    mediaDurationSeconds: null,
+    source: "url",
+    title: cache.title,
+    transcript:
+      transcript === null
+        ? null
+        : {
+            timedText: transcript,
+            text: transcript,
+            source: transcript ? "browser" : null,
+          },
     slides: cache.slides,
-    diagnostics: null,
-  };
+  });
 }
 
 function mergePanelContext(

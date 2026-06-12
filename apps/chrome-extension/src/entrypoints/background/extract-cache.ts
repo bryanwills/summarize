@@ -1,41 +1,10 @@
 import { shouldPreferUrlMode } from "@steipete/summarize-core/content/url";
+import { createCachedExtract, type CachedExtract } from "./cached-extract";
 import type { ExtractResponse } from "./content-script-bridge";
-import {
-  routeExtract,
-  type ExtractLog,
-  type ExtractorContext,
-  type ExtractorResult,
-} from "./extractors/router";
+import { routeExtract, type ExtractLog, type ExtractorContext } from "./extractors/router";
 import type { SlidesPayload } from "./panel-utils";
 
-export type CachedExtract = {
-  url: string;
-  title: string | null;
-  text: string;
-  source: "page" | "url";
-  truncated: boolean;
-  totalCharacters: number;
-  wordCount: number | null;
-  media: { hasVideo: boolean; hasAudio: boolean; hasCaptions: boolean } | null;
-  transcriptSource: string | null;
-  transcriptionProvider: string | null;
-  transcriptCharacters: number | null;
-  transcriptWordCount: number | null;
-  transcriptLines: number | null;
-  transcriptTimedText: string | null;
-  mediaDurationSeconds: number | null;
-  slides: SlidesPayload | null;
-  diagnostics?: {
-    strategy: string;
-    markdown?: { used?: boolean; provider?: string | null } | null;
-    firecrawl?: { used?: boolean } | null;
-    transcript?: {
-      provider?: string | null;
-      cacheStatus?: string | null;
-      attemptedProviders?: string[] | null;
-    } | null;
-  } | null;
-};
+export { createCachedExtract, type CachedExtract } from "./cached-extract";
 
 type CachedExtractStore = {
   getCachedExtract(tabId: number, url: string): CachedExtract | null | undefined;
@@ -54,47 +23,6 @@ type LoadSettingsResult = {
 
 const MIN_CHAT_CHARS = 100;
 const CHAT_FULL_TRANSCRIPT_MAX_CHARS = Number.MAX_SAFE_INTEGER;
-
-function countWords(text: string): number {
-  return text.length > 0 ? text.split(/\s+/).filter(Boolean).length : 0;
-}
-
-function fromPageExtract({
-  extracted,
-  result,
-  title,
-}: {
-  extracted: {
-    url: string;
-    title?: string | null;
-    text: string;
-    truncated: boolean;
-    media?: { hasVideo: boolean; hasAudio: boolean; hasCaptions: boolean } | null;
-    mediaDurationSeconds?: number | null;
-  };
-  result?: Pick<ExtractorResult, "source" | "diagnostics"> | null;
-  title: string | null;
-}): CachedExtract {
-  return {
-    url: extracted.url,
-    title: extracted.title ?? title,
-    text: extracted.text,
-    source: result?.source ?? "page",
-    truncated: extracted.truncated,
-    totalCharacters: extracted.text.length,
-    wordCount: countWords(extracted.text),
-    media: extracted.media ?? null,
-    transcriptSource: null,
-    transcriptionProvider: null,
-    transcriptCharacters: null,
-    transcriptWordCount: null,
-    transcriptLines: null,
-    transcriptTimedText: null,
-    mediaDurationSeconds: extracted.mediaDurationSeconds ?? null,
-    slides: null,
-    diagnostics: result?.diagnostics ?? null,
-  };
-}
 
 export async function ensureChatExtract({
   session,
@@ -151,9 +79,10 @@ export async function ensureChatExtract({
       log: routeLog,
     });
     if (routed) {
-      const next = fromPageExtract({
+      const next = createCachedExtract({
         extracted: routed.extracted,
-        result: routed,
+        source: routed.source,
+        diagnostics: routed.diagnostics,
         title: tab.title?.trim() ?? null,
       });
       panelSessionStore.setCachedExtract(tab.id, next);
@@ -296,7 +225,7 @@ export async function primeMediaHint({
 
   panelSessionStore.setCachedExtract(
     tabId,
-    fromPageExtract({
+    createCachedExtract({
       extracted: attempt.data,
       title,
     }),

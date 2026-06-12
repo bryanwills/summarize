@@ -3,8 +3,8 @@ import type { RunStart } from "../../lib/panel-contracts";
 import type { Settings } from "../../lib/settings";
 import type { BrowserLocalMediaTranscript } from "./browser-local-transcript";
 import { buildBrowserSummaryMarkdown } from "./browser-summary";
+import { createCachedExtract, type CachedExtract } from "./cached-extract";
 import type { ExtractResponse } from "./content-script-bridge";
-import type { CachedExtract } from "./extract-cache";
 import { routeExtract, type ExtractorContext, type ExtractorResult } from "./extractors/router";
 import type { BrowserYoutubeLocalTranscript } from "./youtube-local-transcript";
 import { extractYouTubeTranscriptInTab, hasYouTubeCaptionTracksInTab } from "./youtube-transcript";
@@ -501,31 +501,23 @@ export async function summarizeActiveTab({
   });
 
   const cacheResolvedPayload = () => {
-    const wordCount =
-      resolvedPayload.text.length > 0
-        ? resolvedPayload.text.split(/\s+/).filter(Boolean).length
-        : 0;
-    panelSessionStore.setCachedExtract(tab.id, {
-      url: resolvedPayload.url,
-      title: resolvedTitle,
-      text: resolvedPayload.text,
-      source: routedResult?.source ?? "page",
-      truncated: resolvedPayload.truncated,
-      totalCharacters: resolvedPayload.text.length,
-      wordCount,
-      media: resolvedPayload.media ?? null,
-      transcriptSource: browserTranscriptTimedText ? "browser" : null,
-      transcriptionProvider: browserTranscriptTimedText ? "browser" : null,
-      transcriptCharacters: browserTranscriptTimedText ? resolvedPayload.text.length : null,
-      transcriptWordCount: browserTranscriptTimedText ? wordCount : null,
-      transcriptLines: browserTranscriptTimedText
-        ? browserTranscriptTimedText.split("\n").filter(Boolean).length
-        : null,
-      transcriptTimedText: browserTranscriptTimedText,
-      mediaDurationSeconds: resolvedPayload.mediaDurationSeconds ?? null,
-      slides: null,
-      diagnostics: routedResult?.diagnostics ?? null,
-    });
+    panelSessionStore.setCachedExtract(
+      tab.id,
+      createCachedExtract({
+        extracted: resolvedPayload,
+        source: routedResult?.source,
+        diagnostics: routedResult?.diagnostics,
+        title: resolvedTitle,
+        transcript: browserTranscriptTimedText
+          ? {
+              timedText: browserTranscriptTimedText,
+              text: resolvedPayload.text,
+              source: "browser",
+              provider: "browser",
+            }
+          : null,
+      }),
+    );
   };
   cacheResolvedPayload();
 

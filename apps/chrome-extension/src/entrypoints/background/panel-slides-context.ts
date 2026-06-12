@@ -1,18 +1,12 @@
 import { logExtensionEvent } from "../../lib/extension-logs";
+import { createCachedExtract, type CachedExtract } from "./cached-extract";
 import type { PanelSession } from "./panel-session-store";
 
 type SlidesContextResponse =
   | { type: "slides:context"; requestId: string; ok: false; error: string }
   | { type: "slides:context"; requestId: string; ok: true; transcriptTimedText: string | null };
 
-export async function handlePanelSlidesContextRequest<
-  CachedExtract extends {
-    transcriptTimedText?: string | null;
-    slides?: { slides?: unknown[] } | null;
-  },
-  Recovery,
-  Status,
->(options: {
+export async function handlePanelSlidesContextRequest<Recovery, Status>(options: {
   session: PanelSession<Recovery, Status>;
   requestId: string;
   requestedUrl: string | null;
@@ -98,25 +92,19 @@ export async function handlePanelSlidesContextRequest<
       transcriptTimedText = json.extracted?.transcriptTimedText ?? null;
       if (transcriptTimedText) {
         if (!cached && canUseCache && tab?.id && tabUrl) {
-          cached = {
-            url: tabUrl,
-            title: tab.title?.trim() ?? null,
-            text: "",
+          cached = createCachedExtract({
+            extracted: {
+              url: tabUrl,
+              title: tab.title?.trim() ?? null,
+              text: "",
+              truncated: false,
+              media: null,
+            },
             source: "url",
-            truncated: false,
-            totalCharacters: 0,
+            title: tab.title?.trim() ?? null,
             wordCount: null,
-            media: null,
-            transcriptSource: null,
-            transcriptionProvider: null,
-            transcriptCharacters: null,
-            transcriptWordCount: null,
-            transcriptLines: null,
-            transcriptTimedText,
-            mediaDurationSeconds: null,
-            slides: null,
-            diagnostics: null,
-          } as CachedExtract;
+            transcript: { timedText: transcriptTimedText },
+          });
         } else if (cached) {
           cached = { ...cached, transcriptTimedText };
         }
