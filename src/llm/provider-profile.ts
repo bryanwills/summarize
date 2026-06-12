@@ -54,7 +54,13 @@ export type GatewayProviderProfile = {
   supportsDocuments: boolean;
   supportsStreaming: boolean;
   supportsVideoUnderstanding: boolean;
+  defaultBaseUrl?: string;
+  forceChatCompletions?: boolean;
 };
+
+export const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434/v1";
+
+export const DEFAULT_MINIMAX_BASE_URL = "https://api.minimax.io/v1";
 
 const GATEWAY_PROVIDER_PROFILES: Record<GatewayProvider, GatewayProviderProfile> = {
   xai: {
@@ -91,6 +97,8 @@ const GATEWAY_PROVIDER_PROFILES: Record<GatewayProvider, GatewayProviderProfile>
     supportsDocuments: false,
     supportsStreaming: true,
     supportsVideoUnderstanding: false,
+    defaultBaseUrl: "https://api.z.ai/api/paas/v4",
+    forceChatCompletions: true,
   },
   nvidia: {
     requiredEnv: "NVIDIA_API_KEY",
@@ -98,6 +106,8 @@ const GATEWAY_PROVIDER_PROFILES: Record<GatewayProvider, GatewayProviderProfile>
     supportsDocuments: false,
     supportsStreaming: true,
     supportsVideoUnderstanding: false,
+    defaultBaseUrl: "https://integrate.api.nvidia.com/v1",
+    forceChatCompletions: true,
   },
   minimax: {
     requiredEnv: "MINIMAX_API_KEY",
@@ -105,6 +115,8 @@ const GATEWAY_PROVIDER_PROFILES: Record<GatewayProvider, GatewayProviderProfile>
     supportsDocuments: false,
     supportsStreaming: true,
     supportsVideoUnderstanding: false,
+    defaultBaseUrl: DEFAULT_MINIMAX_BASE_URL,
+    forceChatCompletions: true,
   },
   "github-copilot": {
     requiredEnv: "GITHUB_TOKEN",
@@ -112,6 +124,8 @@ const GATEWAY_PROVIDER_PROFILES: Record<GatewayProvider, GatewayProviderProfile>
     supportsDocuments: false,
     supportsStreaming: true,
     supportsVideoUnderstanding: false,
+    defaultBaseUrl: GITHUB_MODELS_BASE_URL,
+    forceChatCompletions: true,
   },
   ollama: {
     requiredEnv: "OLLAMA_BASE_URL",
@@ -119,12 +133,54 @@ const GATEWAY_PROVIDER_PROFILES: Record<GatewayProvider, GatewayProviderProfile>
     supportsDocuments: false,
     supportsStreaming: true,
     supportsVideoUnderstanding: false,
+    defaultBaseUrl: DEFAULT_OLLAMA_BASE_URL,
+    forceChatCompletions: true,
   },
 };
 
-export const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434/v1";
+export type ProviderRuntimeBindings = {
+  apiKeys: Partial<Record<GatewayProvider, string | null>>;
+  baseUrls: Partial<Record<GatewayProvider, string | null>>;
+  openaiUseChatCompletions?: boolean;
+};
 
-export const DEFAULT_MINIMAX_BASE_URL = "https://api.minimax.io/v1";
+export type ProviderOpenAiOverrides = {
+  openaiApiKeyOverride?: string | null;
+  openaiBaseUrlOverride?: string | null;
+  forceChatCompletions?: boolean;
+};
+
+export function resolveProviderOpenAiOverrides({
+  provider,
+  runtime,
+  baseUrlOverride,
+}: {
+  provider: GatewayProvider;
+  runtime: ProviderRuntimeBindings;
+  baseUrlOverride?: string | null;
+}): ProviderOpenAiOverrides {
+  const profile = getGatewayProviderProfile(provider);
+  if (profile.execution !== "openai-http" && profile.execution !== "openai-compatible") {
+    return {};
+  }
+
+  const runtimeBaseUrl = runtime.baseUrls[provider];
+  const openaiBaseUrlOverride =
+    provider === "openai"
+      ? (baseUrlOverride ?? runtimeBaseUrl)
+      : (runtimeBaseUrl ?? baseUrlOverride ?? profile.defaultBaseUrl);
+  const forceChatCompletions =
+    provider === "openai" ? runtime.openaiUseChatCompletions : profile.forceChatCompletions;
+  const apiKey = runtime.apiKeys[provider];
+
+  return {
+    ...(provider !== "openai" && provider !== "ollama"
+      ? { openaiApiKeyOverride: apiKey ?? null }
+      : {}),
+    ...(openaiBaseUrlOverride != null ? { openaiBaseUrlOverride } : {}),
+    ...(typeof forceChatCompletions === "boolean" ? { forceChatCompletions } : {}),
+  };
+}
 
 export const DEFAULT_CLI_MODELS: Record<CliProvider, string | null> = {
   claude: "sonnet",

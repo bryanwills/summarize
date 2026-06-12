@@ -1,8 +1,8 @@
 import path from "node:path";
 import type { CliProvider } from "../../../config.js";
 import { parseCliUserModelId } from "../../../engine/cli-model-id.js";
+import { createFixedModelAttempt } from "../../../engine/fixed-model-attempt.js";
 import type { ModelAttempt } from "../../../engine/types.js";
-import { resolveGitHubModelsApiKey } from "../../../llm/github-models.js";
 import { buildAutoModelAttempts } from "../../../model-auto.js";
 import { buildPathSummaryPrompt } from "../../../prompts/index.js";
 import { ensureCliAttachmentPath } from "../../attachments.js";
@@ -50,64 +50,9 @@ export async function buildAssetModelAttempts({
   if (!ctx.fixedModelSpec) {
     throw new Error("Internal error: missing fixed model spec");
   }
-  if (ctx.fixedModelSpec.transport === "cli") {
-    return [
-      {
-        transport: "cli",
-        userModelId: ctx.fixedModelSpec.userModelId,
-        llmModelId: null,
-        cliProvider: ctx.fixedModelSpec.cliProvider,
-        cliModel: ctx.fixedModelSpec.cliModel,
-        openrouterProviders: null,
-        forceOpenRouter: false,
-        requiredEnv: ctx.fixedModelSpec.requiredEnv,
-      },
-    ];
-  }
-  const openaiOverrides =
-    ctx.fixedModelSpec.requiredEnv === "Z_AI_API_KEY"
-      ? {
-          openaiApiKeyOverride: ctx.apiStatus.zaiApiKey,
-          openaiBaseUrlOverride: ctx.apiStatus.zaiBaseUrl,
-          forceChatCompletions: true,
-        }
-      : ctx.fixedModelSpec.requiredEnv === "NVIDIA_API_KEY"
-        ? {
-            openaiApiKeyOverride: ctx.apiStatus.nvidiaApiKey,
-            openaiBaseUrlOverride: ctx.apiStatus.nvidiaBaseUrl,
-            forceChatCompletions: true,
-          }
-        : ctx.fixedModelSpec.requiredEnv === "MINIMAX_API_KEY"
-          ? {
-              openaiApiKeyOverride: ctx.apiStatus.minimaxApiKey,
-              openaiBaseUrlOverride: ctx.apiStatus.minimaxBaseUrl,
-              forceChatCompletions: true,
-            }
-          : ctx.fixedModelSpec.requiredEnv === "OLLAMA_BASE_URL"
-            ? {
-                openaiBaseUrlOverride: ctx.apiStatus.ollamaBaseUrl,
-                forceChatCompletions: true,
-              }
-            : ctx.fixedModelSpec.requiredEnv === "GITHUB_TOKEN"
-              ? {
-                  openaiApiKeyOverride: resolveGitHubModelsApiKey(ctx.env),
-                  openaiBaseUrlOverride: ctx.fixedModelSpec.openaiBaseUrlOverride ?? null,
-                  forceChatCompletions: true,
-                }
-              : {};
+  const attempt = createFixedModelAttempt(ctx.fixedModelSpec);
   return [
-    {
-      transport: ctx.fixedModelSpec.transport === "openrouter" ? "openrouter" : "native",
-      userModelId: ctx.fixedModelSpec.userModelId,
-      llmModelId: ctx.fixedModelSpec.llmModelId,
-      openrouterProviders: ctx.fixedModelSpec.openrouterProviders,
-      forceOpenRouter: ctx.fixedModelSpec.forceOpenRouter,
-      requiredEnv: ctx.fixedModelSpec.requiredEnv,
-      ...(ctx.fixedModelSpec.requestOptions
-        ? { requestOptions: ctx.fixedModelSpec.requestOptions }
-        : {}),
-      ...openaiOverrides,
-    },
+    attempt.transport === "cli" ? attempt : ctx.summaryEngine.applyOpenAiGatewayOverrides(attempt),
   ];
 }
 

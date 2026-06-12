@@ -8,6 +8,7 @@ import {
   requiredEnvForCliProvider,
   requiredEnvForGatewayProvider,
   resolveOpenAiCompatibleClientConfigForProvider,
+  resolveProviderOpenAiOverrides,
   resolveRequiredEnvForModelId,
   supportsDocumentAttachments,
   supportsStreaming,
@@ -166,6 +167,55 @@ describe("llm provider capabilities", () => {
       useChatCompletions: true,
       isOpenRouter: false,
     });
+  });
+
+  it("resolves runtime OpenAI-compatible overrides from provider profiles", () => {
+    const runtime = {
+      apiKeys: {
+        zai: "z-key",
+        nvidia: "n-key",
+        minimax: "m-key",
+        "github-copilot": "gh-key",
+      },
+      baseUrls: {
+        openai: "https://openai.example/v1",
+        zai: "https://zai.example/v1",
+        nvidia: "https://nvidia.example/v1",
+        minimax: "https://minimax.example/v1",
+        ollama: "http://ollama.example:11434/v1",
+      },
+      openaiUseChatCompletions: false,
+    } as const;
+
+    expect(resolveProviderOpenAiOverrides({ provider: "zai", runtime })).toEqual({
+      openaiApiKeyOverride: "z-key",
+      openaiBaseUrlOverride: "https://zai.example/v1",
+      forceChatCompletions: true,
+    });
+    expect(resolveProviderOpenAiOverrides({ provider: "nvidia", runtime })).toEqual({
+      openaiApiKeyOverride: "n-key",
+      openaiBaseUrlOverride: "https://nvidia.example/v1",
+      forceChatCompletions: true,
+    });
+    expect(resolveProviderOpenAiOverrides({ provider: "minimax", runtime })).toEqual({
+      openaiApiKeyOverride: "m-key",
+      openaiBaseUrlOverride: "https://minimax.example/v1",
+      forceChatCompletions: true,
+    });
+    expect(resolveProviderOpenAiOverrides({ provider: "github-copilot", runtime })).toEqual({
+      openaiApiKeyOverride: "gh-key",
+      openaiBaseUrlOverride: "https://models.github.ai/inference",
+      forceChatCompletions: true,
+    });
+    expect(resolveProviderOpenAiOverrides({ provider: "ollama", runtime })).toEqual({
+      openaiBaseUrlOverride: "http://ollama.example:11434/v1",
+      forceChatCompletions: true,
+    });
+    expect(resolveProviderOpenAiOverrides({ provider: "openai", runtime })).toEqual({
+      openaiBaseUrlOverride: "https://openai.example/v1",
+      forceChatCompletions: false,
+    });
+    expect(resolveProviderOpenAiOverrides({ provider: "anthropic", runtime })).toEqual({});
   });
 
   it("returns false for invalid video model ids and requires provider keys", () => {

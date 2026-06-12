@@ -146,14 +146,15 @@ describe("asset summary attempts", () => {
     ]);
   });
 
-  it("adds gateway overrides for fixed Z.ai, NVIDIA, and Ollama specs", async () => {
+  it("routes fixed Z.ai, NVIDIA, and Ollama specs through runtime overrides", async () => {
     const zaiAttempts = await buildAssetModelAttempts({
       ctx: createContext({
         isFallbackModel: false,
         fixedModelSpec: {
           transport: "native",
-          userModelId: "openai/gpt-oss",
-          llmModelId: "gpt-oss",
+          userModelId: "zai/gpt-oss",
+          llmModelId: "zai/gpt-oss",
+          provider: "zai",
           openrouterProviders: null,
           forceOpenRouter: false,
           requiredEnv: "Z_AI_API_KEY",
@@ -165,9 +166,8 @@ describe("asset summary attempts", () => {
       lastSuccessfulCliProvider: null,
     });
     expect(zaiAttempts[0]).toMatchObject({
-      openaiApiKeyOverride: "zai-key",
-      openaiBaseUrlOverride: "https://z.ai",
-      forceChatCompletions: true,
+      userModelId: "zai/gpt-oss",
+      gatewayWrapped: true,
     });
 
     const nvidiaAttempts = await buildAssetModelAttempts({
@@ -175,8 +175,9 @@ describe("asset summary attempts", () => {
         isFallbackModel: false,
         fixedModelSpec: {
           transport: "native",
-          userModelId: "openai/llama",
-          llmModelId: "llama",
+          userModelId: "nvidia/llama",
+          llmModelId: "nvidia/llama",
+          provider: "nvidia",
           openrouterProviders: null,
           forceOpenRouter: false,
           requiredEnv: "NVIDIA_API_KEY",
@@ -188,9 +189,8 @@ describe("asset summary attempts", () => {
       lastSuccessfulCliProvider: null,
     });
     expect(nvidiaAttempts[0]).toMatchObject({
-      openaiApiKeyOverride: "nv-key",
-      openaiBaseUrlOverride: "https://nvidia",
-      forceChatCompletions: true,
+      userModelId: "nvidia/llama",
+      gatewayWrapped: true,
     });
 
     const ollamaAttempts = await buildAssetModelAttempts({
@@ -200,6 +200,7 @@ describe("asset summary attempts", () => {
           transport: "native",
           userModelId: "ollama/qwen3:0.6b",
           llmModelId: "ollama/qwen3:0.6b",
+          provider: "ollama",
           openrouterProviders: null,
           forceOpenRouter: false,
           requiredEnv: "OLLAMA_BASE_URL",
@@ -211,10 +212,9 @@ describe("asset summary attempts", () => {
       lastSuccessfulCliProvider: null,
     });
     expect(ollamaAttempts[0]).toMatchObject({
-      openaiBaseUrlOverride: "http://ollama:11434/v1",
-      forceChatCompletions: true,
+      userModelId: "ollama/qwen3:0.6b",
+      gatewayWrapped: true,
     });
-    expect(ollamaAttempts[0]).not.toHaveProperty("openaiApiKeyOverride");
   });
 
   it("returns null cli context when cli transport or attachments are not eligible", async () => {

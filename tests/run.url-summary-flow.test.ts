@@ -292,6 +292,11 @@ describe("summarizeExtractedUrl timestamp guard", () => {
           ollamaBaseUrl: "http://ollama-box:11434/v1",
         },
         summaryEngine: {
+          applyOpenAiGatewayOverrides: (attempt: Record<string, unknown>) => ({
+            ...attempt,
+            openaiBaseUrlOverride: "http://ollama-box:11434/v1",
+            forceChatCompletions: true,
+          }),
           envHasKeyFor: () => true,
           formatMissingModelError: () => "missing",
           runSummaryAttempt: async ({ attempt }: { attempt: unknown }) => {

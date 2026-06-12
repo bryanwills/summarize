@@ -11,7 +11,6 @@ import type { CliProvider, SummarizeConfig } from "../config.js";
 import type { ExtractedLinkContent } from "../content/index.js";
 import type { StreamMode } from "../flags.js";
 import type { OutputLanguage } from "../language.js";
-import { resolveGitHubModelsApiKey } from "../llm/github-models.js";
 import type { Prompt } from "../llm/prompt.js";
 import { buildAutoModelAttempts } from "../model-auto.js";
 import type { FixedModelSpec } from "../model-spec.js";
@@ -20,6 +19,7 @@ import type { SummaryLengthArg } from "../shared/summary-length.js";
 import { countTokens } from "../tokenizer.js";
 import { parseCliUserModelId } from "./cli-model-id.js";
 import type { SummaryStreamHandler } from "./events.js";
+import { createFixedModelAttempt } from "./fixed-model-attempt.js";
 import type { createModelExecutor } from "./model-executor.js";
 import { buildModelMetaFromAttempt } from "./model-meta.js";
 import { executeSummaryAttempts } from "./summary-execution.js";
@@ -174,64 +174,11 @@ export async function resolveUrlSummaryExecution({
     if (!model.fixedModelSpec) {
       throw new Error("Internal error: missing fixed model spec");
     }
-    if (model.fixedModelSpec.transport === "cli") {
-      return [
-        {
-          transport: "cli",
-          userModelId: model.fixedModelSpec.userModelId,
-          llmModelId: null,
-          cliProvider: model.fixedModelSpec.cliProvider,
-          cliModel: model.fixedModelSpec.cliModel,
-          openrouterProviders: null,
-          forceOpenRouter: false,
-          requiredEnv: model.fixedModelSpec.requiredEnv,
-        },
-      ];
-    }
-    const openaiOverrides =
-      model.fixedModelSpec.requiredEnv === "Z_AI_API_KEY"
-        ? {
-            openaiApiKeyOverride: model.apiStatus.zaiApiKey,
-            openaiBaseUrlOverride: model.apiStatus.zaiBaseUrl,
-            forceChatCompletions: true,
-          }
-        : model.fixedModelSpec.requiredEnv === "NVIDIA_API_KEY"
-          ? {
-              openaiApiKeyOverride: model.apiStatus.nvidiaApiKey,
-              openaiBaseUrlOverride: model.apiStatus.nvidiaBaseUrl,
-              forceChatCompletions: true,
-            }
-          : model.fixedModelSpec.requiredEnv === "MINIMAX_API_KEY"
-            ? {
-                openaiApiKeyOverride: model.apiStatus.minimaxApiKey,
-                openaiBaseUrlOverride: model.apiStatus.minimaxBaseUrl,
-                forceChatCompletions: true,
-              }
-            : model.fixedModelSpec.requiredEnv === "OLLAMA_BASE_URL"
-              ? {
-                  openaiBaseUrlOverride: model.apiStatus.ollamaBaseUrl,
-                  forceChatCompletions: true,
-                }
-              : model.fixedModelSpec.requiredEnv === "GITHUB_TOKEN"
-                ? {
-                    openaiApiKeyOverride: resolveGitHubModelsApiKey(io.envForRun),
-                    openaiBaseUrlOverride: model.fixedModelSpec.openaiBaseUrlOverride ?? null,
-                    forceChatCompletions: true,
-                  }
-                : {};
+    const attempt = createFixedModelAttempt(model.fixedModelSpec);
     return [
-      {
-        transport: model.fixedModelSpec.transport === "openrouter" ? "openrouter" : "native",
-        userModelId: model.fixedModelSpec.userModelId,
-        llmModelId: model.fixedModelSpec.llmModelId,
-        openrouterProviders: model.fixedModelSpec.openrouterProviders,
-        forceOpenRouter: model.fixedModelSpec.forceOpenRouter,
-        requiredEnv: model.fixedModelSpec.requiredEnv,
-        ...(model.fixedModelSpec.requestOptions
-          ? { requestOptions: model.fixedModelSpec.requestOptions }
-          : {}),
-        ...openaiOverrides,
-      },
+      attempt.transport === "cli"
+        ? attempt
+        : model.summaryEngine.applyOpenAiGatewayOverrides(attempt),
     ];
   })();
   runtime.trace?.("summary:attempts", attempts[0]?.userModelId ?? null);

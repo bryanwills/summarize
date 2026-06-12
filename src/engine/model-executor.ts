@@ -6,6 +6,10 @@ import { parseGatewayStyleModelId } from "../llm/model-id.js";
 import { mergeRequestOptionsForProvider } from "../llm/model-options.js";
 import type { ModelRequestOptions, OpenAiReasoningEffort } from "../llm/model-options.js";
 import type { Prompt } from "../llm/prompt.js";
+import {
+  resolveProviderOpenAiOverrides,
+  type ProviderRuntimeBindings,
+} from "../llm/provider-profile.js";
 import { formatCompactCount } from "../shared/format-count.js";
 import { countTokens } from "../tokenizer.js";
 import { EngineError } from "./errors.js";
@@ -90,6 +94,24 @@ export type ModelExecutorDeps = {
 };
 
 export function createModelExecutor(deps: ModelExecutorDeps) {
+  const providerRuntime: ProviderRuntimeBindings = {
+    apiKeys: {
+      openai: deps.apiKeys.openaiApiKey,
+      zai: deps.zai.apiKey,
+      nvidia: deps.nvidia.apiKey,
+      minimax: deps.minimax.apiKey,
+      "github-copilot": null,
+    },
+    baseUrls: {
+      openai: deps.providerBaseUrls.openai,
+      zai: deps.zai.baseUrl,
+      nvidia: deps.nvidia.baseUrl,
+      minimax: deps.minimax.baseUrl,
+      ollama: deps.ollama.baseUrl,
+    },
+    openaiUseChatCompletions: deps.openaiUseChatCompletions,
+  };
+
   const createRetryLogger = (modelId: string) => {
     return (notice: { attempt: number; maxRetries: number; delayMs: number; error?: unknown }) => {
       const message =
@@ -112,48 +134,26 @@ export function createModelExecutor(deps: ModelExecutorDeps) {
   };
 
   const applyOpenAiGatewayOverrides = (attempt: ModelAttempt): ModelAttempt => {
-    const modelIdLower = attempt.userModelId.toLowerCase();
-    if (modelIdLower.startsWith("zai/")) {
-      return {
-        ...attempt,
-        openaiApiKeyOverride: deps.zai.apiKey,
-        openaiBaseUrlOverride: deps.zai.baseUrl,
-        forceChatCompletions: true,
-      };
-    }
-    if (modelIdLower.startsWith("nvidia/")) {
-      return {
-        ...attempt,
-        openaiApiKeyOverride: deps.nvidia.apiKey,
-        openaiBaseUrlOverride: deps.nvidia.baseUrl,
-        forceChatCompletions: true,
-      };
-    }
-    if (modelIdLower.startsWith("minimax/")) {
-      return {
-        ...attempt,
-        openaiApiKeyOverride: deps.minimax.apiKey,
-        openaiBaseUrlOverride: deps.minimax.baseUrl,
-        forceChatCompletions: true,
-      };
-    }
-    if (modelIdLower.startsWith("ollama/")) {
-      return {
-        ...attempt,
-        openaiBaseUrlOverride: deps.ollama.baseUrl,
-        forceChatCompletions: true,
-      };
-    }
-    if (modelIdLower.startsWith("github-copilot/")) {
-      return {
-        ...attempt,
-        openaiApiKeyOverride: resolveGitHubModelsApiKey(deps.envForRun),
-        openaiBaseUrlOverride:
-          attempt.openaiBaseUrlOverride ?? "https://models.github.ai/inference",
-        forceChatCompletions: true,
-      };
-    }
-    return attempt;
+    if (attempt.transport === "cli" || attempt.transport === "openrouter") return attempt;
+    const provider = parseGatewayStyleModelId(attempt.userModelId).provider;
+    const runtime =
+      provider === "github-copilot"
+        ? {
+            ...providerRuntime,
+            apiKeys: {
+              ...providerRuntime.apiKeys,
+              "github-copilot": resolveGitHubModelsApiKey(deps.envForRun),
+            },
+          }
+        : providerRuntime;
+    return {
+      ...attempt,
+      ...resolveProviderOpenAiOverrides({
+        provider,
+        runtime,
+        baseUrlOverride: attempt.openaiBaseUrlOverride,
+      }),
+    };
   };
 
   const envHasKeyFor = (requiredEnv: ModelAttempt["requiredEnv"]) => {

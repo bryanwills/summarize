@@ -10,6 +10,7 @@ export {
   requiredEnvForCliProvider,
   requiredEnvForGatewayProvider,
   resolveOpenAiCompatibleClientConfigForProvider,
+  resolveProviderOpenAiOverrides,
   resolveRequiredEnvForModelId,
   supportsDocumentAttachments,
   supportsStreaming,
@@ -18,6 +19,8 @@ export {
 export type {
   GatewayProvider,
   GatewayProviderProfile,
+  ProviderOpenAiOverrides,
   ProviderExecution,
+  ProviderRuntimeBindings,
   RequiredModelEnv,
 } from "./provider-profile.js";
