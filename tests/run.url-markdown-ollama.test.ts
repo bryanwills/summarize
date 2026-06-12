@@ -52,7 +52,7 @@ describe("URL markdown Ollama routing", () => {
         apiStatus: {
           xaiApiKey: null,
           googleApiKey: null,
-          apiKey: null,
+          apiKey: "sk-openai",
           anthropicApiKey: null,
           openrouterApiKey: null,
           openrouterConfigured: false,
@@ -74,6 +74,15 @@ describe("URL markdown Ollama routing", () => {
         openaiRequestOptions: undefined,
         openaiRequestOptionsOverride: undefined,
         llmCalls: [],
+        summaryEngine: {
+          applyOpenAiGatewayOverrides: (attempt: object) => ({
+            ...attempt,
+            openaiApiKeyOverride: null,
+            openaiBaseUrlOverride: "http://ollama-box:11434/v1",
+            forceChatCompletions: true,
+          }),
+          envHasKeyFor: () => true,
+        },
       },
     } as unknown as UrlFlowContext;
 

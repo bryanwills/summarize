@@ -1,5 +1,5 @@
+import { createFixedModelAttempt } from "../../../engine/fixed-model-attempt.js";
 import type { ModelAttempt } from "../../../engine/types.js";
-import { resolveGitHubModelsApiKey } from "../../../llm/github-models.js";
 import { createHtmlToMarkdownConverter } from "../../../llm/html-to-markdown.js";
 import { parseGatewayStyleModelId } from "../../../llm/model-id.js";
 import { mergeRequestOptionsForProvider } from "../../../llm/model-options.js";
@@ -8,19 +8,14 @@ import {
   createTranscriptToMarkdownConverter,
 } from "../../../llm/transcript-to-markdown.js";
 import { convertToMarkdownWithMarkitdown } from "../../../markitdown.js";
+import { parseRequestedModelId } from "../../../model-spec.js";
 import { hasUvxCli } from "../../env.js";
 import { createRetryLogger } from "../../logging.js";
 import type { UrlFlowContext } from "./types.js";
 
-export type MarkdownModel = {
+export type MarkdownModel = ModelAttempt & {
+  transport: "native" | "openrouter";
   llmModelId: string;
-  forceOpenRouter: boolean;
-  openaiApiKeyOverride?: string | null;
-  openaiBaseUrlOverride?: string | null;
-  ollamaBaseUrlOverride?: string | null;
-  forceChatCompletions?: boolean;
-  requestOptions?: ModelAttempt["requestOptions"];
-  requiredEnv?: ModelAttempt["requiredEnv"];
 };
 
 export type MarkdownConverters = {
@@ -73,116 +68,51 @@ export function createMarkdownConverters(
   const effectiveMarkdownMode =
     markdownRequested || transcriptMarkdownRequested ? ctx.flags.markdownMode : "off";
 
+  const resolveMarkdownModel = (modelId: string): MarkdownModel => {
+    const requested = parseRequestedModelId(modelId);
+    if (requested.kind !== "fixed" || requested.transport === "cli") {
+      throw new Error(`Internal error: unsupported markdown model ${modelId}`);
+    }
+    const attempt = ctx.model.summaryEngine.applyOpenAiGatewayOverrides(
+      createFixedModelAttempt(requested),
+    );
+    if (attempt.transport === "cli" || !attempt.llmModelId) {
+      throw new Error(`Internal error: unsupported markdown model ${modelId}`);
+    }
+    return attempt as MarkdownModel;
+  };
+
   const markdownModel: MarkdownModel | null = (() => {
     if (!markdownRequested && !transcriptMarkdownRequested) return null;
 
-    // Prefer the explicitly chosen model when it is a native provider (keeps behavior stable).
+    // Prefer the explicitly chosen native model; otherwise choose the first configured default.
     if (
       ctx.model.requestedModel.kind === "fixed" &&
       ctx.model.requestedModel.transport === "native"
     ) {
-      if (ctx.model.fixedModelSpec?.requiredEnv === "Z_AI_API_KEY") {
-        return {
-          llmModelId: ctx.model.requestedModel.llmModelId,
-          forceOpenRouter: false,
-          requiredEnv: ctx.model.fixedModelSpec.requiredEnv,
-          openaiApiKeyOverride: ctx.model.apiStatus.zaiApiKey,
-          openaiBaseUrlOverride: ctx.model.apiStatus.zaiBaseUrl,
-          forceChatCompletions: true,
-          requestOptions: ctx.model.requestedModel.requestOptions,
-        };
+      const attempt = ctx.model.summaryEngine.applyOpenAiGatewayOverrides(
+        createFixedModelAttempt(ctx.model.requestedModel),
+      );
+      if (attempt.transport === "cli" || !attempt.llmModelId) {
+        throw new Error("Internal error: unsupported fixed markdown model");
       }
-      if (ctx.model.fixedModelSpec?.requiredEnv === "NVIDIA_API_KEY") {
-        return {
-          llmModelId: ctx.model.requestedModel.llmModelId,
-          forceOpenRouter: false,
-          requiredEnv: ctx.model.fixedModelSpec.requiredEnv,
-          openaiApiKeyOverride: ctx.model.apiStatus.nvidiaApiKey,
-          openaiBaseUrlOverride: ctx.model.apiStatus.nvidiaBaseUrl,
-          forceChatCompletions: true,
-          requestOptions: ctx.model.requestedModel.requestOptions,
-        };
-      }
-      if (ctx.model.fixedModelSpec?.requiredEnv === "MINIMAX_API_KEY") {
-        return {
-          llmModelId: ctx.model.requestedModel.llmModelId,
-          forceOpenRouter: false,
-          requiredEnv: ctx.model.fixedModelSpec.requiredEnv,
-          openaiApiKeyOverride: ctx.model.apiStatus.minimaxApiKey,
-          openaiBaseUrlOverride: ctx.model.apiStatus.minimaxBaseUrl,
-          forceChatCompletions: true,
-          requestOptions: ctx.model.requestedModel.requestOptions,
-        };
-      }
-      if (ctx.model.fixedModelSpec?.requiredEnv === "GITHUB_TOKEN") {
-        return {
-          llmModelId: ctx.model.requestedModel.llmModelId,
-          forceOpenRouter: false,
-          requiredEnv: ctx.model.fixedModelSpec.requiredEnv,
-          openaiApiKeyOverride: resolveGitHubModelsApiKey(ctx.io.envForRun),
-          openaiBaseUrlOverride: ctx.model.fixedModelSpec.openaiBaseUrlOverride ?? null,
-          forceChatCompletions: true,
-          requestOptions: ctx.model.requestedModel.requestOptions,
-        };
-      }
-      if (ctx.model.fixedModelSpec?.requiredEnv === "OLLAMA_BASE_URL") {
-        return {
-          llmModelId: ctx.model.requestedModel.llmModelId,
-          forceOpenRouter: false,
-          requiredEnv: ctx.model.fixedModelSpec.requiredEnv,
-          openaiBaseUrlOverride: ctx.model.apiStatus.ollamaBaseUrl,
-          ollamaBaseUrlOverride: ctx.model.apiStatus.ollamaBaseUrl,
-          forceChatCompletions: true,
-          requestOptions: ctx.model.requestedModel.requestOptions,
-        };
-      }
-      return {
-        llmModelId: ctx.model.requestedModel.llmModelId,
-        forceOpenRouter: false,
-        requiredEnv: ctx.model.fixedModelSpec?.requiredEnv,
-        forceChatCompletions: ctx.model.openaiUseChatCompletions,
-        requestOptions: ctx.model.requestedModel.requestOptions,
-      };
+      return attempt as MarkdownModel;
     }
-
-    // Otherwise pick a safe, broadly-capable default for HTML→Markdown conversion.
     if (ctx.model.apiStatus.googleConfigured) {
-      return {
-        llmModelId: "google/gemini-3-flash",
-        forceOpenRouter: false,
-        requiredEnv: "GEMINI_API_KEY",
-      };
+      return resolveMarkdownModel("google/gemini-3-flash");
     }
     if (ctx.model.apiStatus.apiKey) {
-      return {
-        llmModelId: "openai/gpt-5-mini",
-        forceOpenRouter: false,
-        requiredEnv: "OPENAI_API_KEY",
-        forceChatCompletions: ctx.model.openaiUseChatCompletions,
-      };
+      return resolveMarkdownModel("openai/gpt-5-mini");
     }
     if (ctx.model.apiStatus.openrouterConfigured) {
-      return {
-        llmModelId: "openai/openai/gpt-5-mini",
-        forceOpenRouter: true,
-        requiredEnv: "OPENROUTER_API_KEY",
-      };
+      return resolveMarkdownModel("openrouter/openai/gpt-5-mini");
     }
     if (ctx.model.apiStatus.anthropicConfigured) {
-      return {
-        llmModelId: "anthropic/claude-sonnet-4-5",
-        forceOpenRouter: false,
-        requiredEnv: "ANTHROPIC_API_KEY",
-      };
+      return resolveMarkdownModel("anthropic/claude-sonnet-4-5");
     }
     if (ctx.model.apiStatus.xaiApiKey) {
-      return {
-        llmModelId: "xai/grok-4-fast-non-reasoning",
-        forceOpenRouter: false,
-        requiredEnv: "XAI_API_KEY",
-      };
+      return resolveMarkdownModel("xai/grok-4-fast-non-reasoning");
     }
-
     return null;
   })();
 
@@ -192,110 +122,71 @@ export function createMarkdownConverters(
     return parsed.provider;
   })();
 
-  const hasKeyForMarkdownModel = (() => {
-    if (!markdownModel) return false;
-    if (markdownModel.forceOpenRouter) return ctx.model.apiStatus.openrouterConfigured;
-    if (markdownModel.requiredEnv === "Z_AI_API_KEY") return Boolean(ctx.model.apiStatus.zaiApiKey);
-    if (markdownModel.requiredEnv === "NVIDIA_API_KEY")
-      return Boolean(ctx.model.apiStatus.nvidiaApiKey);
-    if (markdownModel.requiredEnv === "MINIMAX_API_KEY")
-      return Boolean(ctx.model.apiStatus.minimaxApiKey);
-    if (markdownModel.requiredEnv === "GITHUB_TOKEN")
-      return Boolean(resolveGitHubModelsApiKey(ctx.io.envForRun));
-    if (markdownModel.requiredEnv === "OLLAMA_BASE_URL") return true;
-    if (markdownModel.openaiApiKeyOverride) return true;
-    const parsed = parseGatewayStyleModelId(markdownModel.llmModelId);
-    return parsed.provider === "xai"
-      ? Boolean(ctx.model.apiStatus.xaiApiKey)
-      : parsed.provider === "google"
-        ? ctx.model.apiStatus.googleConfigured
-        : parsed.provider === "anthropic"
-          ? ctx.model.apiStatus.anthropicConfigured
-          : parsed.provider === "zai"
-            ? Boolean(ctx.model.apiStatus.zaiApiKey)
-            : parsed.provider === "nvidia"
-              ? Boolean(ctx.model.apiStatus.nvidiaApiKey)
-              : parsed.provider === "minimax"
-                ? Boolean(ctx.model.apiStatus.minimaxApiKey)
-                : Boolean(ctx.model.apiStatus.apiKey);
-  })();
+  const hasKeyForMarkdownModel = markdownModel
+    ? ctx.model.summaryEngine.envHasKeyFor(markdownModel.requiredEnv)
+    : false;
 
   if (
     (markdownRequested || transcriptMarkdownRequested) &&
     effectiveMarkdownMode === "llm" &&
     !hasKeyForMarkdownModel
   ) {
-    const required = (() => {
-      if (markdownModel?.forceOpenRouter) return "OPENROUTER_API_KEY";
-      if (markdownModel?.requiredEnv === "Z_AI_API_KEY") return "Z_AI_API_KEY";
-      if (markdownModel?.requiredEnv === "NVIDIA_API_KEY") return "NVIDIA_API_KEY";
-      if (markdownModel?.requiredEnv === "MINIMAX_API_KEY") return "MINIMAX_API_KEY";
-      if (markdownModel?.requiredEnv === "GITHUB_TOKEN") return "GITHUB_TOKEN (or GH_TOKEN)";
-      if (markdownModel?.requiredEnv === "OLLAMA_BASE_URL") return "OLLAMA_BASE_URL";
-      if (markdownModel) {
-        const parsed = parseGatewayStyleModelId(markdownModel.llmModelId);
-        return parsed.provider === "xai"
-          ? "XAI_API_KEY"
-          : parsed.provider === "google"
-            ? "GEMINI_API_KEY (or GOOGLE_GENERATIVE_AI_API_KEY / GOOGLE_API_KEY)"
-            : parsed.provider === "anthropic"
-              ? "ANTHROPIC_API_KEY"
-              : parsed.provider === "zai"
-                ? "Z_AI_API_KEY"
-                : parsed.provider === "nvidia"
-                  ? "NVIDIA_API_KEY"
-                  : parsed.provider === "minimax"
-                    ? "MINIMAX_API_KEY"
-                    : parsed.provider === "github-copilot"
-                      ? "GITHUB_TOKEN (or GH_TOKEN)"
-                      : "OPENAI_API_KEY";
-      }
-      return "GEMINI_API_KEY (or GOOGLE_GENERATIVE_AI_API_KEY / GOOGLE_API_KEY)";
-    })();
+    const required =
+      markdownModel?.requiredEnv === "GEMINI_API_KEY"
+        ? "GEMINI_API_KEY (or GOOGLE_GENERATIVE_AI_API_KEY / GOOGLE_API_KEY)"
+        : markdownModel?.requiredEnv === "GITHUB_TOKEN"
+          ? "GITHUB_TOKEN (or GH_TOKEN)"
+          : (markdownModel?.requiredEnv ??
+            "GEMINI_API_KEY (or GOOGLE_GENERATIVE_AI_API_KEY / GOOGLE_API_KEY)");
     throw new Error(`--markdown-mode llm requires ${required}`);
   }
 
+  const llmConverterOptions = markdownModel
+    ? ({
+        modelId: markdownModel.llmModelId,
+        forceOpenRouter: markdownModel.forceOpenRouter,
+        xaiApiKey: ctx.model.apiStatus.xaiApiKey,
+        googleApiKey: ctx.model.apiStatus.googleApiKey,
+        openaiApiKey:
+          markdownModel.openaiApiKeyOverride === undefined
+            ? ctx.model.apiStatus.apiKey
+            : markdownModel.openaiApiKeyOverride,
+        anthropicApiKey: ctx.model.apiStatus.anthropicApiKey,
+        openrouterApiKey: ctx.model.apiStatus.openrouterApiKey,
+        openaiBaseUrlOverride: markdownModel.openaiBaseUrlOverride,
+        ollamaBaseUrlOverride:
+          markdownProvider === "ollama" ? markdownModel.openaiBaseUrlOverride : undefined,
+        anthropicBaseUrlOverride: ctx.model.apiStatus.providerBaseUrls.anthropic,
+        googleBaseUrlOverride: ctx.model.apiStatus.providerBaseUrls.google,
+        xaiBaseUrlOverride: ctx.model.apiStatus.providerBaseUrls.xai,
+        forceChatCompletions: markdownModel.forceChatCompletions,
+        requestOptions: mergeRequestOptionsForProvider({
+          provider: markdownProvider,
+          openaiGlobalDefault: ctx.model.openaiRequestOptions,
+          attemptOptions: markdownModel.requestOptions,
+          openaiOverride: ctx.model.openaiRequestOptionsOverride,
+          cliReasoningEffortOverride: ctx.model.cliReasoningEffortOverride,
+        }),
+        fetchImpl: ctx.io.fetch,
+        retries: ctx.flags.retries,
+        onRetry: createRetryLogger({
+          stderr: ctx.io.stderr,
+          verbose: ctx.flags.verbose,
+          color: ctx.flags.verboseColor,
+          modelId: markdownModel.llmModelId,
+          env: ctx.io.envForRun,
+        }),
+        onUsage: ({ model: usedModel, provider, usage }) => {
+          ctx.model.llmCalls.push({ provider, model: usedModel, usage, purpose: "markdown" });
+        },
+      } satisfies Parameters<typeof createHtmlToMarkdownConverter>[0])
+    : null;
+
   const llmHtmlToMarkdown =
     markdownRequested &&
-    markdownModel !== null &&
+    llmConverterOptions !== null &&
     (effectiveMarkdownMode === "llm" || markdownProvider !== "none")
-      ? createHtmlToMarkdownConverter({
-          modelId: markdownModel.llmModelId,
-          forceOpenRouter: markdownModel.forceOpenRouter,
-          xaiApiKey: ctx.model.apiStatus.xaiApiKey,
-          googleApiKey: ctx.model.apiStatus.googleApiKey,
-          openaiApiKey: markdownModel.openaiApiKeyOverride ?? ctx.model.apiStatus.apiKey,
-          anthropicApiKey: ctx.model.apiStatus.anthropicApiKey,
-          openrouterApiKey: ctx.model.apiStatus.openrouterApiKey,
-          openaiBaseUrlOverride:
-            markdownModel.openaiBaseUrlOverride ?? ctx.model.apiStatus.providerBaseUrls.openai,
-          ollamaBaseUrlOverride: markdownModel.ollamaBaseUrlOverride,
-          anthropicBaseUrlOverride: ctx.model.apiStatus.providerBaseUrls.anthropic,
-          googleBaseUrlOverride: ctx.model.apiStatus.providerBaseUrls.google,
-          xaiBaseUrlOverride: ctx.model.apiStatus.providerBaseUrls.xai,
-          forceChatCompletions:
-            markdownModel.forceChatCompletions ??
-            (ctx.model.openaiUseChatCompletions && markdownProvider === "openai"),
-          requestOptions: mergeRequestOptionsForProvider({
-            provider: markdownProvider,
-            openaiGlobalDefault: ctx.model.openaiRequestOptions,
-            attemptOptions: markdownModel.requestOptions,
-            openaiOverride: ctx.model.openaiRequestOptionsOverride,
-            cliReasoningEffortOverride: ctx.model.cliReasoningEffortOverride,
-          }),
-          fetchImpl: ctx.io.fetch,
-          retries: ctx.flags.retries,
-          onRetry: createRetryLogger({
-            stderr: ctx.io.stderr,
-            verbose: ctx.flags.verbose,
-            color: ctx.flags.verboseColor,
-            modelId: markdownModel.llmModelId,
-            env: ctx.io.envForRun,
-          }),
-          onUsage: ({ model: usedModel, provider, usage }) => {
-            ctx.model.llmCalls.push({ provider, model: usedModel, usage, purpose: "markdown" });
-          },
-        })
+      ? createHtmlToMarkdownConverter(llmConverterOptions)
       : null;
 
   const markitdownHtmlToMarkdown =
@@ -366,44 +257,8 @@ export function createMarkdownConverters(
 
   // Transcript→Markdown converter (only for YouTube with --markdown-mode llm)
   const convertTranscriptToMarkdown: ConvertTranscriptToMarkdown | null =
-    transcriptMarkdownRequested && markdownModel !== null
-      ? createTranscriptToMarkdownConverter({
-          modelId: markdownModel.llmModelId,
-          forceOpenRouter: markdownModel.forceOpenRouter,
-          xaiApiKey: ctx.model.apiStatus.xaiApiKey,
-          googleApiKey: ctx.model.apiStatus.googleApiKey,
-          openaiApiKey: markdownModel.openaiApiKeyOverride ?? ctx.model.apiStatus.apiKey,
-          anthropicApiKey: ctx.model.apiStatus.anthropicApiKey,
-          openrouterApiKey: ctx.model.apiStatus.openrouterApiKey,
-          openaiBaseUrlOverride:
-            markdownModel.openaiBaseUrlOverride ?? ctx.model.apiStatus.providerBaseUrls.openai,
-          ollamaBaseUrlOverride: markdownModel.ollamaBaseUrlOverride,
-          anthropicBaseUrlOverride: ctx.model.apiStatus.providerBaseUrls.anthropic,
-          googleBaseUrlOverride: ctx.model.apiStatus.providerBaseUrls.google,
-          xaiBaseUrlOverride: ctx.model.apiStatus.providerBaseUrls.xai,
-          forceChatCompletions:
-            markdownModel.forceChatCompletions ??
-            (ctx.model.openaiUseChatCompletions && markdownProvider === "openai"),
-          requestOptions: mergeRequestOptionsForProvider({
-            provider: markdownProvider,
-            openaiGlobalDefault: ctx.model.openaiRequestOptions,
-            attemptOptions: markdownModel.requestOptions,
-            openaiOverride: ctx.model.openaiRequestOptionsOverride,
-            cliReasoningEffortOverride: ctx.model.cliReasoningEffortOverride,
-          }),
-          fetchImpl: ctx.io.fetch,
-          retries: ctx.flags.retries,
-          onRetry: createRetryLogger({
-            stderr: ctx.io.stderr,
-            verbose: ctx.flags.verbose,
-            color: ctx.flags.verboseColor,
-            modelId: markdownModel.llmModelId,
-            env: ctx.io.envForRun,
-          }),
-          onUsage: ({ model: usedModel, provider, usage }) => {
-            ctx.model.llmCalls.push({ provider, model: usedModel, usage, purpose: "markdown" });
-          },
-        })
+    transcriptMarkdownRequested && llmConverterOptions !== null
+      ? createTranscriptToMarkdownConverter(llmConverterOptions)
       : null;
 
   return {

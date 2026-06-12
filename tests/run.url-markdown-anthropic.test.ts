@@ -77,6 +77,10 @@ function buildCtx(opts: {
       openaiRequestOptionsOverride: opts.openaiRequestOptionsOverride,
       cliReasoningEffortOverride: opts.cliReasoningEffortOverride,
       llmCalls: [],
+      summaryEngine: {
+        applyOpenAiGatewayOverrides: (attempt: object) => attempt,
+        envHasKeyFor: () => true,
+      },
     },
   } as unknown as UrlFlowContext;
 }
