@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  fetchOpenRouterCatalog,
   filterOpenRouterFreeModels,
   inferParamBFromIdOrName,
   parseOpenRouterCatalog,
@@ -21,6 +22,29 @@ function model(id: string, overrides: Partial<OpenRouterModelEntry> = {}): OpenR
 }
 
 describe("refresh-free catalog", () => {
+  it("fetches and parses the OpenRouter model catalog", async () => {
+    const fetchImpl = vi.fn(async () => {
+      return new Response(JSON.stringify({ data: [{ id: "vendor/model:free" }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+
+    await expect(fetchOpenRouterCatalog(fetchImpl as unknown as typeof fetch)).resolves.toEqual([
+      expect.objectContaining({ id: "vendor/model:free" }),
+    ]);
+    expect(fetchImpl).toHaveBeenCalledWith("https://openrouter.ai/api/v1/models", {
+      headers: { Accept: "application/json" },
+    });
+  });
+
+  it("reports OpenRouter catalog HTTP failures", async () => {
+    const fetchImpl = vi.fn(async () => new Response("failed", { status: 503 }));
+    await expect(fetchOpenRouterCatalog(fetchImpl as unknown as typeof fetch)).rejects.toThrow(
+      "OpenRouter /models failed: HTTP 503",
+    );
+  });
+
   it("infers the largest parameter size from common model names", () => {
     expect(inferParamBFromIdOrName("vendor/model-e2b:free")).toBe(2);
     expect(inferParamBFromIdOrName("vendor/model-1.5b:free")).toBe(1.5);

@@ -16,6 +16,18 @@ export type FilteredOpenRouterCatalog = {
   smallFilteredIds: string[];
 };
 
+export async function fetchOpenRouterCatalog(
+  fetchImpl: typeof fetch,
+): Promise<OpenRouterModelEntry[]> {
+  const response = await fetchImpl("https://openrouter.ai/api/v1/models", {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(`OpenRouter /models failed: HTTP ${response.status}`);
+  }
+  return parseOpenRouterCatalog(await response.json());
+}
+
 export function inferParamBFromIdOrName(text: string): number | null {
   const raw = text.toLowerCase();
   const matches = raw.matchAll(/(?:^|[^a-z0-9])[a-z]?(\d+(?:\.\d+)?)b(?:[^a-z0-9]|$)/g);

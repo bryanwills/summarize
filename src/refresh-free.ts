@@ -4,8 +4,8 @@ import {
   selectBenchmarkCandidates,
 } from "./refresh-free/benchmark.js";
 import {
+  fetchOpenRouterCatalog,
   filterOpenRouterFreeModels,
-  parseOpenRouterCatalog,
   rankOpenRouterModelsForBenchmark,
 } from "./refresh-free/catalog.js";
 import { writeFreeModelConfig } from "./refresh-free/config.js";
@@ -69,13 +69,7 @@ export async function refreshFree({
   const applyMaxAgeFilter = MAX_AGE_DAYS > 0;
 
   reporter.fetchingCatalog();
-  const response = await fetchImpl("https://openrouter.ai/api/v1/models", {
-    headers: { Accept: "application/json" },
-  });
-  if (!response.ok) {
-    throw new Error(`OpenRouter /models failed: HTTP ${response.status}`);
-  }
-  const catalogModels = parseOpenRouterCatalog(await response.json());
+  const catalogModels = await fetchOpenRouterCatalog(fetchImpl);
   const { freeModelsAll, freeModelsAgeFiltered, freeModels, ageFilteredIds, smallFilteredIds } =
     filterOpenRouterFreeModels(catalogModels, {
       maxAgeDays: MAX_AGE_DAYS,
