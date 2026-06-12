@@ -520,7 +520,7 @@ export async function executeSummarizeSession({
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     pushToSession(session, { event: "error", data: { message } }, onSessionEvent);
-    if (session.slidesRequested && !session.slidesDone) {
+    if (session.slidesRequested && !session.slideEvents.done) {
       emitSlidesDone(session, { ok: false, error: message }, onSessionEvent);
     }
     console.error("[summarize-daemon] summarize failed", error);

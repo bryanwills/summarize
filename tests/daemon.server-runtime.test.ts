@@ -78,7 +78,7 @@ describe("daemon server runtime", () => {
     runtime.registerActiveSummarizeRequest("request", session.id);
     expect(runtime.findActiveSummarizeSession("request")).toBe(session);
 
-    session.done = true;
+    session.summaryEvents.done = true;
     expect(runtime.findActiveSummarizeSession("request")).toBeNull();
 
     runtime.registerActiveSummarizeRequest("missing", "missing-session");

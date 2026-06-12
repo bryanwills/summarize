@@ -168,12 +168,13 @@ export async function handleSessionRoutes(options: {
       json(res, 404, { ok: false, error: "not found" }, cors);
       return true;
     }
+    const { buffer, clients, done } = session.summaryEvents;
     attachBufferedSseSession({
       res,
       cors,
-      buffer: session.buffer,
-      clients: session.clients,
-      done: session.done,
+      buffer,
+      clients,
+      done,
     });
     return true;
   }
@@ -191,14 +192,15 @@ export async function handleSessionRoutes(options: {
       return true;
     }
 
+    const { buffer, clients, done } = session.slideEvents;
     attachBufferedSseSession({
       res,
       cors,
-      buffer: session.slidesBuffer,
-      clients: session.slidesClients,
-      done: session.slidesDone,
+      buffer,
+      clients,
+      done,
       afterReplay: () => {
-        const hasSlidesEvent = session.slidesBuffer.some((entry) => entry.event.event === "slides");
+        const hasSlidesEvent = buffer.some((entry) => entry.event.event === "slides");
         if (!hasSlidesEvent && session.slides) {
           res.write(
             encodeSseEvent({
@@ -212,7 +214,7 @@ export async function handleSessionRoutes(options: {
           );
         }
 
-        const hasStatusEvent = session.slidesBuffer.some((entry) => entry.event.event === "status");
+        const hasStatusEvent = buffer.some((entry) => entry.event.event === "status");
         if (!hasStatusEvent && session.slidesLastStatus) {
           res.write(encodeSseEvent({ event: "status", data: { text: session.slidesLastStatus } }));
         }
@@ -234,12 +236,13 @@ export async function handleSessionRoutes(options: {
       return true;
     }
 
+    const { buffer, clients, done } = session.summaryEvents;
     attachBufferedSseSession({
       res,
       cors,
-      buffer: session.buffer,
-      clients: session.clients,
-      done: session.done,
+      buffer,
+      clients,
+      done,
     });
     return true;
   }

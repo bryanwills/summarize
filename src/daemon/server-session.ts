@@ -1,24 +1,19 @@
-import http from "node:http";
-import {
-  encodeSseEvent,
-  type SseEvent,
-  type SseSlidesData,
-} from "@steipete/summarize-core/runtime";
+import { type SseEvent, type SseSlidesData } from "@steipete/summarize-core/runtime";
 import type { SlideExtractionResult } from "../slides/index.js";
+import {
+  closeBufferedSseChannel,
+  createBufferedSseChannel,
+  pushBufferedSseEvent,
+  type BufferedSseChannel,
+} from "./server-event-channel.js";
 
 export type SessionEvent = SseEvent;
 
 export type Session = {
   id: string;
   createdAtMs: number;
-  buffer: Array<{ event: SessionEvent; bytes: number }>;
-  bufferBytes: number;
-  done: boolean;
-  clients: Set<http.ServerResponse>;
-  slidesBuffer: Array<{ event: SessionEvent; bytes: number }>;
-  slidesBufferBytes: number;
-  slidesClients: Set<http.ServerResponse>;
-  slidesDone: boolean;
+  summaryEvents: BufferedSseChannel;
+  slideEvents: BufferedSseChannel;
   slidesRequested: boolean;
   slidesLastStatus: string | null;
   lastMeta: {
@@ -31,21 +26,14 @@ export type Session = {
   slides: SlideExtractionResult | null;
 };
 
-const MAX_SESSION_BUFFER_BYTES = 1_000_000;
 const SESSION_TTL_MS = 15 * 60 * 1000;
 
 export function createSession(idFactory: () => string): Session {
   return {
     id: idFactory(),
     createdAtMs: Date.now(),
-    buffer: [],
-    bufferBytes: 0,
-    done: false,
-    clients: new Set(),
-    slidesBuffer: [],
-    slidesBufferBytes: 0,
-    slidesClients: new Set(),
-    slidesDone: false,
+    summaryEvents: createBufferedSseChannel(),
+    slideEvents: createBufferedSseChannel(),
     slidesRequested: false,
     slidesLastStatus: null,
     lastMeta: {
@@ -59,44 +47,15 @@ export function createSession(idFactory: () => string): Session {
   };
 }
 
-function pushBuffered(
-  target: Array<{ event: SessionEvent; bytes: number }>,
-  sessionBytes: { current: number },
-  event: SessionEvent,
-) {
-  const encoded = encodeSseEvent(event);
-  const entry = { event, bytes: Buffer.byteLength(encoded) };
-  target.push(entry);
-  sessionBytes.current += entry.bytes;
-  while (sessionBytes.current > MAX_SESSION_BUFFER_BYTES && target.length > 0) {
-    const removed = target.shift();
-    if (!removed) break;
-    sessionBytes.current -= removed.bytes;
-  }
-}
-
 export function pushToSession(
   session: Session,
   event: SessionEvent,
   onSessionEvent?: ((event: SessionEvent, sessionId: string) => void) | null,
 ) {
-  if (session.done) return;
-  pushBuffered(
-    session.buffer,
-    {
-      get current() {
-        return session.bufferBytes;
-      },
-      set current(v) {
-        session.bufferBytes = v;
-      },
-    },
-    event,
-  );
-  const encoded = encodeSseEvent(event);
-  for (const client of Array.from(session.clients)) client.write(encoded);
+  if (session.summaryEvents.done) return;
+  pushBufferedSseEvent(session.summaryEvents, event);
   onSessionEvent?.(event, session.id);
-  if (event.event === "done" || event.event === "error") session.done = true;
+  if (event.event === "done" || event.event === "error") session.summaryEvents.done = true;
 }
 
 export function pushSlidesToSession(
@@ -104,22 +63,9 @@ export function pushSlidesToSession(
   event: SessionEvent,
   onSessionEvent?: ((event: SessionEvent, sessionId: string) => void) | null,
 ) {
-  pushBuffered(
-    session.slidesBuffer,
-    {
-      get current() {
-        return session.slidesBufferBytes;
-      },
-      set current(v) {
-        session.slidesBufferBytes = v;
-      },
-    },
-    event,
-  );
-  const encoded = encodeSseEvent(event);
-  for (const client of Array.from(session.slidesClients)) client.write(encoded);
+  pushBufferedSseEvent(session.slideEvents, event);
   onSessionEvent?.(event, session.id);
-  if (event.event === "done" || event.event === "error") session.slidesDone = true;
+  if (event.event === "done" || event.event === "error") session.slideEvents.done = true;
   if (event.event === "status") session.slidesLastStatus = event.data.text;
 }
 
@@ -178,10 +124,8 @@ export function emitSlidesDone(
 }
 
 export function endSession(session: Session) {
-  for (const client of Array.from(session.clients)) client.end();
-  for (const client of Array.from(session.slidesClients)) client.end();
-  session.clients.clear();
-  session.slidesClients.clear();
+  closeBufferedSseChannel(session.summaryEvents);
+  closeBufferedSseChannel(session.slideEvents);
 }
 
 export function scheduleSessionCleanup({

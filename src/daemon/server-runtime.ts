@@ -112,7 +112,7 @@ export class DaemonRuntime {
   findActiveSummarizeSession(key: string): Session | null {
     const sessionId = this.activeSummarizeRequests.get(key);
     const session = sessionId ? this.sessions.get(sessionId) : null;
-    if (sessionId && session && !session.done) return session;
+    if (sessionId && session && !session.summaryEvents.done) return session;
     if (sessionId && !session) {
       this.activeSummarizeRequests.delete(key);
     }
