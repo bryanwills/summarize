@@ -1,4 +1,5 @@
 import { isYouTubeVideoUrl, shouldPreferUrlMode } from "@steipete/summarize-core/content/url";
+import { planMediaExtraction } from "../../lib/media-extraction-plan";
 import type { RunStart } from "../../lib/panel-contracts";
 import type { Settings } from "../../lib/settings";
 import type { BrowserLocalMediaTranscript } from "./browser-local-transcript";
@@ -143,9 +144,12 @@ export async function summarizeActiveTab({
   const tab = await getActiveTab(session.windowId);
   if (!tab?.id || !canSummarizeUrl(tab.url)) return;
   const tabUrl = tab.url ?? "";
-  const prefersUrlModeForTab = shouldPreferUrlMode(tabUrl);
-  const requestedInputMode =
-    opts?.inputMode ?? (prefersUrlModeForTab || isYouTubeVideoUrl(tabUrl) ? "video" : null);
+  const extractionPlan = planMediaExtraction({
+    url: tabUrl,
+    requestedInputMode: opts?.inputMode,
+  });
+  const requestedInputMode = extractionPlan.inputMode;
+  const prefersUrlModeForTab = extractionPlan.prefersUrlMode;
   const requestedWantsSlides =
     settings.slidesEnabled && (requestedInputMode === "video" || prefersUrlModeForTab);
   const matchesRequestedRun = (candidate: {

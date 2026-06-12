@@ -1,4 +1,4 @@
-import { isYouTubeVideoUrl, shouldPreferUrlMode } from "@steipete/summarize-core/content/url";
+import { planMediaExtraction } from "../../lib/media-extraction-plan";
 import type { BgToPanel, PanelCachePayload } from "../../lib/panel-contracts";
 
 type BrowserSlidesSession = {
@@ -72,11 +72,13 @@ export function createBrowserSlidesRuntime<Session extends BrowserSlidesSession>
   async function start(session: Session, startOptions: BrowserSlidesStartOptions): Promise<void> {
     const tab = await getActiveTab(session.windowId);
     const tabUrl = tab?.url ?? "";
-    const inputMode =
-      startOptions.inputMode ??
-      (shouldPreferUrlMode(tabUrl) || isYouTubeVideoUrl(tabUrl) ? "video" : null);
+    const extractionPlan = planMediaExtraction({
+      url: tabUrl,
+      requestedInputMode: startOptions.inputMode,
+    });
+    const inputMode = extractionPlan.inputMode;
     const canAttemptBrowserCapture =
-      isYouTubeVideoUrl(tabUrl) ||
+      extractionPlan.isYouTubeVideo ||
       startOptions.inputMode === "video" ||
       startOptions.reason === "slides-capture";
     if (inputMode !== "video") return;
@@ -143,7 +145,7 @@ export function createBrowserSlidesRuntime<Session extends BrowserSlidesSession>
 
     let result: Awaited<ReturnType<typeof runBrowserSlidesForTab>>;
     try {
-      const transcript = isYouTubeVideoUrl(tabUrl)
+      const transcript = extractionPlan.isYouTubeVideo
         ? await extractYouTubeTranscriptInTab(tab.id, settings.maxChars)
         : null;
       result = await runBrowserSlidesForTab({

@@ -1,4 +1,4 @@
-import { isYouTubeVideoUrl, shouldPreferUrlMode } from "@steipete/summarize-core/content/url";
+import { planMediaExtraction } from "../../lib/media-extraction-plan";
 import type { Settings } from "../../lib/settings";
 import type { BrowserLocalMediaTranscript } from "./browser-local-transcript";
 import type { CachedExtract } from "./cached-extract";
@@ -71,16 +71,15 @@ export async function preparePanelContent({
   hasYouTubeCaptionTracks?: typeof hasYouTubeCaptionTracksInTab;
   youtubeTranscriptTimeoutMs?: number;
 }): Promise<PreparationResult> {
-  const prefersUrlMode = shouldPreferUrlMode(tabUrl);
-  const wantsUrlDirectPath =
-    isYouTubeVideoUrl(tabUrl) && requestedInputMode !== "page" && prefersUrlMode;
+  const extractionPlan = planMediaExtraction({ url: tabUrl, requestedInputMode });
+  const { prefersUrlMode } = extractionPlan;
 
   let extracted: ExtractResponse & { ok: true };
   let source: CachedExtract["source"] = "page";
   let diagnostics: CachedExtract["diagnostics"] = null;
   let transcriptTimedText: string | null = null;
 
-  if (wantsUrlDirectPath) {
+  if (extractionPlan.directYouTubeTranscript) {
     logPanel("extractor.route.start", { tabId: tab.id, preferUrl: prefersUrlMode });
     logPanel("extractor.route.preferUrlHardSwitch", { tabId: tab.id });
     sendStatus(`Preparing video… (${reason})`);
@@ -168,7 +167,7 @@ export async function preparePanelContent({
       logPanel("extractor.route.preferUrlHardSwitch", { tabId: tab.id });
       const extractedAttempt = await extractFromTab(tab.id, settings.maxChars, {
         timeoutMs: 8_000,
-        inputMode: requestedInputMode ?? "video",
+        inputMode: extractionPlan.contentScriptInputMode,
         log: (event, detail) => {
           statusFromExtractEvent(event);
           logPanel(event, detail);
@@ -275,23 +274,28 @@ export async function ensurePreparedPanelTranscript({
   }) => Promise<BrowserLocalMediaTranscript>;
 }): Promise<PreparedPanelContent> {
   if (content.transcriptTimedText?.trim()) return content;
-  const isYoutube = isYouTubeVideoUrl(content.payload.url);
-  if (!isYoutube && requestedInputMode !== "video" && !content.prefersUrlMode) return content;
-  const localTranscript = isYoutube
-    ? await transcribeYouTubeLocally({
-        tabId: tab.id,
-        maxChars: settings.maxChars,
-        onStatus: sendStatus,
-      })
-    : await transcribeMediaLocally({
-        tabId: tab.id,
-        tabUrl,
-        maxChars: settings.maxChars,
-        onStatus: sendStatus,
-      });
+  const extractionPlan = planMediaExtraction({
+    url: content.payload.url,
+    requestedInputMode,
+  });
+  const localTranscriptKind = extractionPlan.localTranscriptKind;
+  if (!localTranscriptKind) return content;
+  const localTranscript =
+    localTranscriptKind === "youtube"
+      ? await transcribeYouTubeLocally({
+          tabId: tab.id,
+          maxChars: settings.maxChars,
+          onStatus: sendStatus,
+        })
+      : await transcribeMediaLocally({
+          tabId: tab.id,
+          tabUrl,
+          maxChars: settings.maxChars,
+          onStatus: sendStatus,
+        });
   if (!localTranscript.ok) {
     logPanel(
-      isYoutube
+      localTranscriptKind === "youtube"
         ? "extract:url-direct:local-transcript-failed"
         : "extract:browser-media:local-transcript-failed",
       { error: localTranscript.error },
@@ -299,19 +303,24 @@ export async function ensurePreparedPanelTranscript({
     return content;
   }
   if (!urlsMatch(localTranscript.url, tabUrl)) return content;
-  logPanel(isYoutube ? "extract:url-direct:local-transcript" : "extract:browser-media:transcript", {
-    textLength: localTranscript.text.length,
-    mediaSource:
-      "mediaSource" in localTranscript ? localTranscript.mediaSource : localTranscript.source,
-    decoder: localTranscript.diagnostics.decoder,
-    mediaChunksProcessed: localTranscript.diagnostics.chunksProcessed,
-    mediaChunksTotal: localTranscript.diagnostics.chunksTotal,
-    mediaCodec: localTranscript.diagnostics.codec,
-    mediaInput: localTranscript.diagnostics.input,
-    whisperDevice: localTranscript.diagnostics.whisper.device,
-    whisperLoadMs: Math.round(localTranscript.diagnostics.whisper.loadMs),
-    whisperReused: localTranscript.diagnostics.whisper.reused,
-  });
+  logPanel(
+    localTranscriptKind === "youtube"
+      ? "extract:url-direct:local-transcript"
+      : "extract:browser-media:transcript",
+    {
+      textLength: localTranscript.text.length,
+      mediaSource:
+        "mediaSource" in localTranscript ? localTranscript.mediaSource : localTranscript.source,
+      decoder: localTranscript.diagnostics.decoder,
+      mediaChunksProcessed: localTranscript.diagnostics.chunksProcessed,
+      mediaChunksTotal: localTranscript.diagnostics.chunksTotal,
+      mediaCodec: localTranscript.diagnostics.codec,
+      mediaInput: localTranscript.diagnostics.input,
+      whisperDevice: localTranscript.diagnostics.whisper.device,
+      whisperLoadMs: Math.round(localTranscript.diagnostics.whisper.loadMs),
+      whisperReused: localTranscript.diagnostics.whisper.reused,
+    },
+  );
   return {
     ...content,
     payload: {
