@@ -10,13 +10,17 @@ import {
 } from "../content/asset.js";
 import { assertAssetMediaTypeSupported } from "../run/attachments.js";
 
-export type AcquiredAssetInput = {
-  kind: "resolved-asset" | "resolved-media";
+type AcquiredAssetInputBase = {
   sourceKind: "file" | "asset-url";
   sourceLabel: string;
   attachment: AssetAttachment;
   sizeBytes: number | null;
 };
+
+export type AcquiredAssetInput = AcquiredAssetInputBase &
+  ({ kind: "resolved-asset" } | { kind: "resolved-media" });
+export type AcquiredResolvedAssetInput = AcquiredAssetInputBase & { kind: "resolved-asset" };
+export type AcquiredMediaInput = AcquiredAssetInputBase & { kind: "resolved-media" };
 
 export type UrlAssetRoute = "asset" | "media" | "none";
 
@@ -53,7 +57,7 @@ function createMediaInput({
   sourceLabel: string;
   filename: string;
   sizeBytes: number | null;
-}): AcquiredAssetInput {
+}): AcquiredMediaInput {
   return {
     kind: "resolved-media",
     sourceKind,
@@ -122,10 +126,11 @@ export async function resolveUrlAssetRoute({
   if (!detectUnknownAssetUrls && !shouldProbeUnknownAssetUrl(url)) return "none";
 
   const kind = await classifyUrl({ url, fetchImpl, timeoutMs });
+  if (kind.kind === "media") return "media";
   return kind.kind === "asset" ? "asset" : "none";
 }
 
-export function createRemoteMediaInput(url: string): AcquiredAssetInput {
+export function createRemoteMediaInput(url: string): AcquiredMediaInput {
   let filename = "media";
   try {
     filename = path.basename(new URL(url).pathname) || filename;
@@ -163,7 +168,9 @@ export async function acquireRemoteAssetInput({
 
   assertAssetMediaTypeSupported({ attachment: loaded.attachment, sizeLabel: null });
   return {
-    kind: "resolved-asset",
+    kind: isTranscribableMediaType(loaded.attachment.mediaType)
+      ? "resolved-media"
+      : "resolved-asset",
     sourceKind: "asset-url",
     sourceLabel: loaded.sourceLabel,
     attachment: loaded.attachment,

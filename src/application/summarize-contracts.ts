@@ -35,6 +35,12 @@ export type SummarizeInput =
       truncated: boolean;
     }
   | {
+      kind: "input-url";
+      url: string;
+      title: string | null;
+      maxCharacters: number | null;
+    }
+  | {
       kind: "url";
       url: string;
       title: string | null;
@@ -125,7 +131,7 @@ export type AssetExecutionInput = {
 
 export type SummarizeEventInput =
   | UrlSummarizeInput
-  | Extract<SummarizeInput, { kind: "file" | "stdin" }>
+  | Extract<SummarizeInput, { kind: "file" | "stdin" | "input-url" }>
   | {
       kind: "resolved-asset";
       sourceKind: "file" | "asset-url";

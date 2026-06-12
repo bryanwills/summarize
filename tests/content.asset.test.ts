@@ -166,6 +166,35 @@ describe("asset helpers", () => {
     ).resolves.toEqual({ kind: "website" });
   });
 
+  it("preserves media classification from response headers", async () => {
+    await expect(
+      classifyUrl({
+        url: "https://example.com/download?id=episode",
+        fetchImpl: async () =>
+          new Response(null, {
+            status: 200,
+            headers: { "content-type": "audio/mpeg" },
+          }),
+        timeoutMs: 10,
+      }),
+    ).resolves.toEqual({ kind: "media" });
+
+    await expect(
+      classifyUrl({
+        url: "https://example.com/download?id=episode",
+        fetchImpl: async () =>
+          new Response(null, {
+            status: 200,
+            headers: {
+              "content-disposition": 'attachment; filename="episode.mp3"',
+              "content-type": "application/octet-stream",
+            },
+          }),
+        timeoutMs: 10,
+      }),
+    ).resolves.toEqual({ kind: "media" });
+  });
+
   it("builds prompt messages with attachments", () => {
     const attachment = {
       kind: "image",

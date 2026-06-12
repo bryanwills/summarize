@@ -94,6 +94,33 @@ describe("application input acquisition", () => {
         assumeAsset: true,
       }),
     ).resolves.toBe("asset");
+    await expect(
+      resolveUrlAssetRoute({
+        url: "https://example.com/download?id=audio",
+        isYoutubeUrl: false,
+        fetchImpl: async () =>
+          new Response(null, {
+            status: 200,
+            headers: { "content-type": "audio/mpeg" },
+          }),
+        timeoutMs: 1000,
+      }),
+    ).resolves.toBe("media");
+    await expect(
+      resolveUrlAssetRoute({
+        url: "https://example.com/download?id=generic-audio",
+        isYoutubeUrl: false,
+        fetchImpl: async () =>
+          new Response(null, {
+            status: 200,
+            headers: {
+              "content-disposition": 'attachment; filename="episode.mp3"',
+              "content-type": "application/octet-stream",
+            },
+          }),
+        timeoutMs: 1000,
+      }),
+    ).resolves.toBe("media");
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 

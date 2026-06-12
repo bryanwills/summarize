@@ -13,7 +13,7 @@ function toSummarizeInput(
 ): SummarizeRunInput {
   if (input.kind === "url") {
     return {
-      kind: "url",
+      kind: "input-url",
       url: input.url,
       title: null,
       maxCharacters: maxExtractCharacters,

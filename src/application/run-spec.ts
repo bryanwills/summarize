@@ -158,7 +158,10 @@ export function resolveSummarizeRun({
   return {
     spec: {
       format,
-      maxExtractCharacters: request.input.kind === "url" ? request.input.maxCharacters : null,
+      maxExtractCharacters:
+        request.input.kind === "url" || request.input.kind === "input-url"
+          ? request.input.maxCharacters
+          : null,
       timeoutMs: overrides.timeoutMs ?? 120_000,
       retries: overrides.retries ?? 1,
       markdownMode: overrides.markdownMode ?? (format === "markdown" ? "readability" : "off"),

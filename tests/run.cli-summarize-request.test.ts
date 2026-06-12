@@ -27,7 +27,7 @@ describe("CLI summarize request", () => {
       }),
     ).toMatchObject({
       input: {
-        kind: "url",
+        kind: "input-url",
         url: "https://example.com/",
         title: null,
         maxCharacters: 12_000,
@@ -92,7 +92,7 @@ describe("CLI summarize request", () => {
     });
 
     expect(resolution.request).toMatchObject({
-      input: { kind: "url", maxCharacters: 8_000 },
+      input: { kind: "input-url", maxCharacters: 8_000 },
       lengthRaw: "medium",
       languageRaw: "French",
       overrides: {

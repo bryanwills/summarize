@@ -11,7 +11,7 @@ export type InputTarget =
   | { kind: "file"; filePath: string }
   | { kind: "stdin" };
 
-export type UrlKind = { kind: "website" } | { kind: "asset" };
+export type UrlKind = { kind: "website" } | { kind: "asset" } | { kind: "media" };
 
 export type AssetAttachment = {
   mediaType: string;
@@ -80,6 +80,11 @@ function isLikelyAssetMediaType(mediaType: string | null): boolean {
   return true;
 }
 
+function isTranscribableMediaType(mediaType: string | null): boolean {
+  if (!mediaType) return false;
+  return mediaType.startsWith("audio/") || mediaType.startsWith("video/");
+}
+
 function parseContentDispositionFilename(header: string | null): string | null {
   if (!header) return null;
   const match = /filename\*\s*=\s*([^;]+)/i.exec(header) ?? /filename\s*=\s*([^;]+)/i.exec(header);
@@ -94,6 +99,23 @@ function parseContentDispositionFilename(header: string | null): string | null {
   } catch {
     return value;
   }
+}
+
+function classifyResponseHeaders(headers: Headers): UrlKind | null {
+  const mediaType = normalizeHeaderMediaType(headers.get("content-type"));
+  if (isTranscribableMediaType(mediaType)) return { kind: "media" };
+
+  const filename = parseContentDispositionFilename(headers.get("content-disposition"));
+  const filenameMediaType = filename ? normalizeHeaderMediaType(mime.getType(filename)) : null;
+  if (
+    (!mediaType || mediaType === "application/octet-stream") &&
+    isTranscribableMediaType(filenameMediaType)
+  ) {
+    return { kind: "media" };
+  }
+  if (isLikelyAssetMediaType(mediaType)) return { kind: "asset" };
+  if (filename && isLikelyAssetPathname(filename)) return { kind: "asset" };
+  return null;
 }
 
 function looksLikeHtml(bytes: Uint8Array): boolean {
@@ -223,25 +245,21 @@ export async function classifyUrl({
     return { kind: "asset" };
   }
 
-  const tryDetectFromHead = async (): Promise<boolean> => {
+  const tryDetectFromHead = async (): Promise<UrlKind | null> => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await fetchImpl(url, { method: "HEAD", signal: controller.signal });
-      if (!res.ok) return false;
-      const mediaType = normalizeHeaderMediaType(res.headers.get("content-type"));
-      if (isLikelyAssetMediaType(mediaType)) return true;
-      const filename = parseContentDispositionFilename(res.headers.get("content-disposition"));
-      if (filename && isLikelyAssetPathname(filename)) return true;
-      return false;
+      if (!res.ok) return null;
+      return classifyResponseHeaders(res.headers);
     } catch {
-      return false;
+      return null;
     } finally {
       clearTimeout(timeout);
     }
   };
 
-  const tryDetectFromRange = async (): Promise<boolean> => {
+  const tryDetectFromRange = async (): Promise<UrlKind | null> => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -250,20 +268,22 @@ export async function classifyUrl({
         headers: { Range: "bytes=0-2047" },
         signal: controller.signal,
       });
-      if (!res.ok) return false;
-      const mediaType = normalizeHeaderMediaType(res.headers.get("content-type"));
-      if (isLikelyAssetMediaType(mediaType)) return true;
+      if (!res.ok) return null;
+      const headerKind = classifyResponseHeaders(res.headers);
+      if (headerKind) return headerKind;
       const buffer = new Uint8Array(await res.arrayBuffer());
-      return !looksLikeHtml(buffer);
+      return !looksLikeHtml(buffer) ? { kind: "asset" } : null;
     } catch {
-      return false;
+      return null;
     } finally {
       clearTimeout(timeout);
     }
   };
 
-  if (await tryDetectFromHead()) return { kind: "asset" };
-  if (await tryDetectFromRange()) return { kind: "asset" };
+  const headKind = await tryDetectFromHead();
+  if (headKind) return headKind;
+  const rangeKind = await tryDetectFromRange();
+  if (rangeKind) return rangeKind;
   return { kind: "website" };
 }
 

@@ -68,6 +68,7 @@ export function createSummarizeRuntimeResources(args: {
   const directAssetInput =
     request.input.kind === "file" ||
     request.input.kind === "stdin" ||
+    request.input.kind === "input-url" ||
     request.input.kind === "resolved-asset" ||
     request.input.kind === "resolved-media";
   const resources = createSummarizeExecutionResources({
@@ -88,6 +89,7 @@ export function createSummarizeRuntimeResources(args: {
       extractMode: extractOnly ?? false,
       maxExtractCharacters: spec.maxExtractCharacters,
       slides: slides ?? null,
+      throwOnAssetLikeHtmlError: request.input.kind === "input-url" ? true : undefined,
     },
     adapterHooks: {
       writeViaFooter: () => {},
