@@ -8,7 +8,6 @@ import {
 import { generateToken } from "../../lib/token";
 import { syncNavigationWithActiveTab } from "./active-tab-sync";
 import { createAppearanceControls } from "./appearance-controls";
-import { createAutoSummarizeRuntime } from "./auto-summarize-runtime";
 import { createSidepanelBgMessageRuntime } from "./bg-message-runtime";
 import { bindSidepanelUiEvents } from "./bindings";
 import { bootstrapSidepanel } from "./bootstrap-runtime";
@@ -21,14 +20,12 @@ import type { PanelCachePayload } from "./panel-cache";
 import { createPanelMessagingRuntime } from "./panel-messaging";
 import { createPanelStateStore } from "./panel-state-store";
 import { createPanelViewRuntime } from "./panel-view-runtime";
-import { createPlannedSlidesRuntime } from "./planned-slides-runtime";
 import { createSidepanelPresentationRuntime } from "./presentation-runtime";
 import { selectRetainedSlideSummaryMarkdown } from "./retained-slide-summary";
+import { createSidepanelRunRuntime } from "./run-runtime";
 import { createSetupControlsRuntime } from "./setup-controls-runtime";
 import { friendlyFetchError } from "./setup-runtime";
 import { resolveSlidesInputMode } from "./slides-session-state";
-import { createSummaryRunRuntime } from "./summary-run-runtime";
-import { createSummaryStreamRuntime } from "./summary-stream-runtime";
 import { registerSidepanelTestHooks } from "./test-hooks";
 import type { UiState } from "./types";
 import { createTypographyController } from "./typography-controller";
@@ -177,8 +174,6 @@ const {
   maybeStartPendingSlidesForUrl,
   rememberPendingSlidesRun,
   resolveActiveSlidesRunId,
-  slidesHydrator: activeSlidesHydrator,
-  startSlidesStream,
   startSlidesStreamForRunId,
   startSlidesSummaryStreamForRunId,
   stopSlidesStream,
@@ -191,7 +186,6 @@ const {
   updateSlidesTextState,
 } = slidesViewRuntime;
 const { applySlidesLayout, setSlidesLayout } = summarizeControlRuntime;
-const { resetSummaryView } = summaryViewRuntime;
 
 const navigationRuntime = createNavigationRuntime();
 
@@ -264,6 +258,23 @@ const syncWithActiveTab = () =>
     setBaseTitle: (title) => {
       headerController.setBaseTitle(title);
     },
+  });
+
+const { autoSummarizeRuntime, plannedSlidesRuntime, streamController, summaryRunRuntime } =
+  createSidepanelRunRuntime({
+    panelState,
+    dispatchPanelState: panelStateStore.dispatch,
+    getActiveTabId,
+    getActiveTabUrl,
+    appearanceControls,
+    chatRuntime,
+    navigationRuntime,
+    metricsController,
+    headerController,
+    panelCacheController,
+    presentationRuntime,
+    send,
+    syncWithActiveTab,
   });
 
 async function clearCurrentView() {
@@ -358,16 +369,6 @@ registerSidepanelTestHooks({
   getInlineErrorMessage: () => inlineErrorMessageEl.textContent ?? "",
 });
 
-const plannedSlidesRuntime = createPlannedSlidesRuntime({
-  panelState,
-  dispatchPanelState: panelStateStore.dispatch,
-  getActiveTabUrl,
-  getLengthValue: () => appearanceControls.getLengthValue(),
-  updateSlidesTextState,
-  queueSlidesRender,
-  schedulePanelCacheSync: (delayMs) => panelCacheController.scheduleSync(delayMs),
-});
-
 const setupControlsRuntime = createSetupControlsRuntime({
   advancedSettingsBodyEl,
   advancedSettingsEl,
@@ -401,104 +402,6 @@ const {
   setModelValue,
   updateModelRowUI,
 } = setupControlsRuntime;
-
-const summaryStreamRuntime = createSummaryStreamRuntime({
-  friendlyFetchError,
-  getFallbackModel: () => panelState.ui?.settings.model ?? null,
-  getToken: async () => (await loadSettings()).token,
-  handleSlides: activeSlidesHydrator.handlePayload,
-  handleSummaryFromCache: activeSlidesHydrator.handleSummaryFromCache,
-  headerArmProgress: () => {
-    headerController.armProgress();
-  },
-  headerSetBaseSubtitle: (text) => {
-    headerController.setBaseSubtitle(text);
-  },
-  headerSetBaseTitle: (text) => {
-    headerController.setBaseTitle(text);
-  },
-  headerSetStatus: (text) => {
-    headerController.setStatus(text);
-  },
-  headerStopProgress: () => {
-    headerController.stopProgress();
-  },
-  isStreaming,
-  maybeApplyPendingSlidesSummary,
-  panelState,
-  dispatchPanelState: panelStateStore.dispatch,
-  queueSlidesRender,
-  rebuildSlideDescriptions,
-  refreshSummaryMetrics: (summary) => {
-    metricsController.setForMode(
-      "summary",
-      summary,
-      panelState.lastMeta.inputSummary,
-      panelState.currentSource?.url ?? null,
-    );
-    metricsController.setActiveMode("summary");
-  },
-  rememberUrl: (url) => {
-    void send({ type: "panel:rememberUrl", url });
-  },
-  renderMarkdown,
-  resetSummaryView,
-  schedulePanelCacheSync: () => {
-    panelCacheController.scheduleSync();
-  },
-  seedPlannedSlidesForPendingRun: () => {
-    plannedSlidesRuntime.seedPendingRunAndConsumeWhenReady();
-  },
-  setSlidesBusy,
-  setPhase,
-  shouldRebuildSlideDescriptions: () => !slidesTextController.hasSummaryTitles(),
-  syncWithActiveTab,
-});
-const { streamController } = summaryStreamRuntime;
-
-const autoSummarizeRuntime = createAutoSummarizeRuntime({
-  getEnabled: () => getPanelSession().autoSummarize,
-  getPhase: () => panelState.phase,
-  hasSummary: () => Boolean(panelState.summaryMarkdown),
-  summarize: () => {
-    sendSummarize();
-  },
-});
-
-const summaryRunRuntime = createSummaryRunRuntime({
-  panelState,
-  dispatchPanelState: panelStateStore.dispatch,
-  getActiveTabId,
-  cancelAutoSummarize: autoSummarizeRuntime.cancel,
-  summaryStream: {
-    isStreaming: streamController.isStreaming,
-    start: streamController.start,
-  },
-  slides: {
-    getHydratedRunId: activeSlidesHydrator.getActiveRunId,
-    queueRender: queueSlidesRender,
-    seedPlannedRun: plannedSlidesRuntime.seedForRun,
-    setTranscriptTimedText: setSlidesTranscriptTimedText,
-    start: startSlidesStream,
-    stop: stopSlidesStream,
-    updateTextState: updateSlidesTextState,
-  },
-  chat: {
-    clearHistory: chatRuntime.clearHistoryForActiveTab,
-    finishStreamingMessage: chatRuntime.finishStreamingMessage,
-    reset: chatRuntime.reset,
-    shouldPreserveForRun: navigationRuntime.shouldPreserveChatForRun,
-  },
-  view: {
-    queueEmptyRender: renderMarkdownDisplay,
-    renderMarkdown,
-    reset: resetSummaryView,
-    setHeaderSubtitle: (value) => headerController.setBaseSubtitle(value),
-    setHeaderTitle: (value) => headerController.setBaseTitle(value),
-    setMetricsMode: (mode) => metricsController.setActiveMode(mode),
-    setPhase,
-  },
-});
 
 const uiStateRuntime = createUiStateRuntime({
   panelState,
