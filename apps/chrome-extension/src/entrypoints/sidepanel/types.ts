@@ -1,6 +1,7 @@
 import type { Message } from "@earendil-works/pi-ai";
 import type { RunStart, UiState } from "../../lib/panel-contracts";
 import type { SseSlidesData } from "../../lib/runtime-contracts";
+import type { Settings } from "../../lib/settings";
 import type { SlidesSessionState } from "./slides-session-state";
 export type { RunStart, UiState } from "../../lib/panel-contracts";
 
@@ -40,6 +41,16 @@ export type PanelState = {
     plannedRun: RunStart | null;
   };
   slidesSession: SlidesSessionState;
+  panelSession: {
+    autoSummarize: boolean;
+    chatEnabled: boolean;
+    automationEnabled: boolean;
+    settingsHydrated: boolean;
+    pendingSettingsSnapshot: Partial<Settings> | null;
+    lastPanelOpen: boolean;
+    lastAction: "summarize" | "chat" | null;
+    automationNoticeSticky: boolean;
+  };
   runId: string | null;
   slidesRunId: string | null;
   currentSource: { url: string; title: string | null } | null;

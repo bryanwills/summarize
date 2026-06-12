@@ -25,6 +25,7 @@ export type PanelStateAction =
   | { type: "planned-slides-run"; value: PanelState["slidesLifecycle"]["plannedRun"] }
   | { type: "slides-session-update"; value: Partial<PanelState["slidesSession"]> }
   | { type: "slides-context-request-next" }
+  | { type: "panel-session-update"; value: Partial<PanelState["panelSession"]> }
   | { type: "source"; source: PanelState["currentSource"] }
   | { type: "meta"; meta: PanelState["lastMeta"] }
   | { type: "summary"; markdown: string | null }
@@ -78,6 +79,16 @@ export function createInitialPanelState(): PanelState {
       slidesOcrEnabled: defaultSettings.slidesOcrEnabled,
       slidesLayout: defaultSettings.slidesLayout,
     }),
+    panelSession: {
+      autoSummarize: false,
+      chatEnabled: defaultSettings.chatEnabled,
+      automationEnabled: defaultSettings.automationEnabled,
+      settingsHydrated: false,
+      pendingSettingsSnapshot: null,
+      lastPanelOpen: false,
+      lastAction: null,
+      automationNoticeSticky: false,
+    },
     runId: null,
     slidesRunId: null,
     currentSource: null,
@@ -168,6 +179,14 @@ export function reducePanelState(state: PanelState, action: PanelStateAction): P
         slidesSession: {
           ...state.slidesSession,
           slidesContextRequestId: state.slidesSession.slidesContextRequestId + 1,
+        },
+      };
+    case "panel-session-update":
+      return {
+        ...state,
+        panelSession: {
+          ...state.panelSession,
+          ...action.value,
         },
       };
     case "source":

@@ -174,6 +174,10 @@ const getSlidesState = () => panelState.slidesSession;
 const updateSlidesState = (value: Partial<typeof panelState.slidesSession>) => {
   panelStateStore.dispatch({ type: "slides-session-update", value });
 };
+const getPanelSession = () => panelState.panelSession;
+const updatePanelSession = (value: Partial<typeof panelState.panelSession>) => {
+  panelStateStore.dispatch({ type: "panel-session-update", value });
+};
 const nextSlidesContextRequestId = () => {
   panelStateStore.dispatch({ type: "slides-context-request-next" });
   return panelState.slidesSession.slidesContextRequestId;
@@ -187,9 +191,9 @@ const panelPortRuntime = createPanelPortRuntime<BgToPanel>({
 
 async function send(message: PanelToBg) {
   if (message.type === "panel:summarize") {
-    lastAction = "summarize";
+    updatePanelSession({ lastAction: "summarize" });
   } else if (message.type === "panel:agent") {
-    lastAction = "chat";
+    updatePanelSession({ lastAction: "chat" });
   }
   await panelPortRuntime.send(message);
 }
@@ -222,9 +226,6 @@ function handleLocalSlidesResponse(message: Extract<BgToPanel, { type: "slides:l
   pending.resolve(message.ok ? (message.slides ?? null) : null);
 }
 
-let autoValue = false;
-let chatEnabledValue = defaultSettings.chatEnabled;
-let automationEnabledValue = defaultSettings.automationEnabled;
 let autoKickTimer = 0;
 
 const MAX_CHAT_MESSAGES = 1000;
@@ -234,9 +235,6 @@ const chatLimits: ChatHistoryLimits = {
   maxMessages: MAX_CHAT_MESSAGES,
   maxChars: MAX_CHAT_CHARACTERS,
 };
-let lastPanelOpen = false;
-let lastAction: "summarize" | "chat" | null = null;
-let automationNoticeSticky = false;
 let slidesRenderer: {
   applyLayout: () => void;
   clear: () => void;
@@ -255,8 +253,6 @@ let slidesHydrator: {
     hasSlides: boolean;
   }) => void;
 } | null = null;
-let settingsHydrated = false;
-let pendingSettingsSnapshot: Partial<typeof defaultSettings> | null = null;
 const slidesTextController = createSlidesTextController({
   getSlides: () => panelState.slides?.slides ?? null,
   getLengthValue: () => appearanceControls.getLengthValue(),
@@ -289,8 +285,8 @@ const chatHistoryRuntime = createChatHistoryRuntime({
 type AutomationNoticeAction = "extensions" | "options";
 
 function hideAutomationNotice(opts?: { force?: boolean }) {
-  if (automationNoticeSticky && !opts?.force) return;
-  automationNoticeSticky = false;
+  if (getPanelSession().automationNoticeSticky && !opts?.force) return;
+  updatePanelSession({ automationNoticeSticky: false });
   automationNoticeEl.classList.add("hidden");
 }
 
@@ -401,7 +397,7 @@ function attachSummaryRun(run: RunStart) {
     stopSlidesStream();
   }
   setPhase("connecting");
-  lastAction = "summarize";
+  updatePanelSession({ lastAction: "summarize" });
   window.clearTimeout(autoKickTimer);
   if (panelState.chatStreaming) {
     chatStreamRuntime.finishStreamingMessage();
@@ -573,7 +569,7 @@ function showAutomationNotice({
   ctaAction?: AutomationNoticeAction;
   sticky?: boolean;
 }) {
-  automationNoticeSticky = Boolean(sticky);
+  updatePanelSession({ automationNoticeSticky: Boolean(sticky) });
   automationNoticeTitleEl.textContent = title;
   automationNoticeMessageEl.textContent = message;
   automationNoticeActionBtn.textContent = ctaLabel || "Open extension details";
@@ -985,7 +981,7 @@ slidesViewRuntime = createSlidesViewRuntime({
   hideSlideNotice,
   getState: () => ({
     activeTabUrl: getActiveTabUrl(),
-    autoSummarize: autoValue,
+    autoSummarize: getPanelSession().autoSummarize,
     currentSourceTitle: panelState.currentSource?.title ?? null,
     currentSourceUrl: panelState.currentSource?.url ?? null,
     inputMode: resolveSlidesInputMode(getSlidesState()),
@@ -1049,8 +1045,8 @@ registerSidepanelTestHooks({
   getSlidesSummaryMarkdown: () => slidesSummaryController.getMarkdown(),
   getSlidesSummaryComplete: () => slidesSummaryController.getComplete(),
   getSlidesSummaryModel: () => slidesSummaryController.getModel(),
-  getChatEnabled: () => chatEnabledValue,
-  getSettingsHydrated: () => settingsHydrated,
+  getChatEnabled: () => getPanelSession().chatEnabled,
+  getSettingsHydrated: () => getPanelSession().settingsHydrated,
   setTranscriptTimedText: (value) => {
     setSlidesTranscriptTimedText(value);
     updateSlidesTextState();
@@ -1151,7 +1147,7 @@ const appearanceControls = createAppearanceControls({
   lengthRoot,
   patchSettings,
   sendSetAuto: (checked) => {
-    autoValue = checked;
+    updatePanelSession({ autoSummarize: checked });
     void send({ type: "panel:setAuto", value: checked });
   },
   sendSetLength: (value) => {
@@ -1172,7 +1168,7 @@ chatUiRuntime = createChatUiRuntime({
   chatContainerEl,
   chatDockContainerEl: chatDockEl,
   renderEl,
-  getChatEnabled: () => chatEnabledValue,
+  getChatEnabled: () => getPanelSession().chatEnabled,
   getActiveTabId,
   getSummaryMarkdown: () => panelState.summaryMarkdown,
   clearMetrics: () => {
@@ -1412,21 +1408,21 @@ const uiStateRuntime = createUiStateRuntime({
     modelRefreshBtn.disabled = value;
   },
   renderMarkdownHostEl,
-  getLastPanelOpen: () => lastPanelOpen,
+  getLastPanelOpen: () => getPanelSession().lastPanelOpen,
   setLastPanelOpen: (value) => {
-    lastPanelOpen = value;
+    updatePanelSession({ lastPanelOpen: value });
   },
-  getAutoValue: () => autoValue,
+  getAutoValue: () => getPanelSession().autoSummarize,
   setAutoValue: (value) => {
-    autoValue = value;
+    updatePanelSession({ autoSummarize: value });
   },
-  getChatEnabledValue: () => chatEnabledValue,
+  getChatEnabledValue: () => getPanelSession().chatEnabled,
   setChatEnabledValue: (value) => {
-    chatEnabledValue = value;
+    updatePanelSession({ chatEnabled: value });
   },
-  getAutomationEnabledValue: () => automationEnabledValue,
+  getAutomationEnabledValue: () => getPanelSession().automationEnabled,
   setAutomationEnabledValue: (value) => {
-    automationEnabledValue = value;
+    updatePanelSession({ automationEnabled: value });
   },
   getSlidesEnabledValue: () => getSlidesState().slidesEnabled,
   setSlidesEnabledValue: (value) => {
@@ -1562,10 +1558,10 @@ function handleBgMessage(msg: BgToPanel) {
 }
 
 function scheduleAutoKick() {
-  if (!autoValue) return;
+  if (!getPanelSession().autoSummarize) return;
   window.clearTimeout(autoKickTimer);
   autoKickTimer = window.setTimeout(() => {
-    if (!autoValue) return;
+    if (!getPanelSession().autoSummarize) return;
     if (panelState.phase !== "idle") return;
     if (panelState.summaryMarkdown) return;
     sendSummarize();
@@ -1575,7 +1571,7 @@ function scheduleAutoKick() {
 const interactionRuntime = createSidepanelInteractionRuntime({
   sendRawMessage: (message) => panelPortRuntime.send(message as PanelToBg),
   setLastAction: (value) => {
-    lastAction = value;
+    updatePanelSession({ lastAction: value });
   },
   clearInlineError: () => {
     errorController.clearInlineError();
@@ -1584,7 +1580,7 @@ const interactionRuntime = createSidepanelInteractionRuntime({
   retryChat: () => {
     chatStreamRuntime.retryChat();
   },
-  chatEnabled: () => chatEnabledValue,
+  chatEnabled: () => getPanelSession().chatEnabled,
   getRawChatInput: () => chatInputEl.value,
   clearChatInput: () => {
     chatInputEl.value = "";
@@ -1633,7 +1629,7 @@ summarizeControlRuntime = createSummarizeControlRuntime({
     hasSummaryMarkdown: Boolean(panelState.summaryMarkdown),
     slidesEnabled: getSlidesState().slidesEnabled,
     slidesOcrEnabled: getSlidesState().slidesOcrEnabled,
-    autoSummarize: autoValue,
+    autoSummarize: getPanelSession().autoSummarize,
     slidesBusy: getSlidesState().slidesBusy,
     mediaAvailable: getSlidesState().mediaAvailable,
     slidesLayout: getSlidesState().slidesLayout,
@@ -1795,7 +1791,7 @@ async function confirmAutomationToolCall(call: ToolCall): Promise<boolean> {
 
 async function runAgentLoop() {
   await runChatAgentLoop({
-    automationEnabled: automationEnabledValue,
+    automationEnabled: getPanelSession().automationEnabled,
     chatController,
     chatSession,
     confirmToolCall: confirmAutomationToolCall,
@@ -1812,7 +1808,7 @@ async function runAgentLoop() {
 }
 
 const chatStreamRuntime = createChatStreamRuntime({
-  chatEnabled: () => chatEnabledValue,
+  chatEnabled: () => getPanelSession().chatEnabled,
   isChatStreaming: () => panelState.chatStreaming,
   setChatStreaming: (value) => {
     panelStateStore.dispatch({ type: "chat-streaming", value });
@@ -1837,7 +1833,7 @@ const chatStreamRuntime = createChatStreamRuntime({
     metricsController.setActiveMode("chat");
   },
   setLastActionChat: () => {
-    lastAction = "chat";
+    updatePanelSession({ lastAction: "chat" });
   },
   scrollToBottom,
   persistChatHistory,
@@ -1851,7 +1847,7 @@ const chatStreamRuntime = createChatStreamRuntime({
 });
 
 function retryLastAction() {
-  interactionRuntime.retryLastAction(lastAction);
+  interactionRuntime.retryLastAction(getPanelSession().lastAction ?? "summarize");
 }
 
 bindSidepanelUiEvents({
@@ -1897,22 +1893,22 @@ bindSidepanelUiEvents({
 bootstrapSidepanel({
   ensurePanelPort: () => panelPortRuntime.ensure(),
   loadSettings,
-  getPendingSettingsSnapshot: () => pendingSettingsSnapshot,
+  getPendingSettingsSnapshot: () => getPanelSession().pendingSettingsSnapshot,
   clearPendingSettingsSnapshot: () => {
-    pendingSettingsSnapshot = null;
+    updatePanelSession({ pendingSettingsSnapshot: null });
   },
   setSettingsHydrated: (value) => {
-    settingsHydrated = value;
+    updatePanelSession({ settingsHydrated: value });
   },
   typographyController,
   setAutoValue: (value) => {
-    autoValue = value;
+    updatePanelSession({ autoSummarize: value });
   },
   setChatEnabledValue: (value) => {
-    chatEnabledValue = value;
+    updatePanelSession({ chatEnabled: value });
   },
   setAutomationEnabledValue: (value) => {
-    automationEnabledValue = value;
+    updatePanelSession({ automationEnabled: value });
   },
   setSlidesLayoutValue: (value) => {
     updateSlidesState({ slidesLayout: value as SlidesLayout });
@@ -1947,16 +1943,16 @@ bootstrapSidepanel({
   bindSettingsStorage: {
     applyChatEnabled,
     hideAutomationNotice,
-    getSettingsHydrated: () => settingsHydrated,
+    getSettingsHydrated: () => getPanelSession().settingsHydrated,
     setPendingSettingsSnapshot: (value) => {
-      pendingSettingsSnapshot = value;
+      updatePanelSession({ pendingSettingsSnapshot: value });
     },
-    getPendingSettingsSnapshot: () => pendingSettingsSnapshot,
+    getPendingSettingsSnapshot: () => getPanelSession().pendingSettingsSnapshot,
     setChatEnabledValue: (value) => {
-      chatEnabledValue = value;
+      updatePanelSession({ chatEnabled: value });
     },
     setAutomationEnabledValue: (value) => {
-      automationEnabledValue = value;
+      updatePanelSession({ automationEnabled: value });
     },
   },
   bindSidepanelLifecycle: {

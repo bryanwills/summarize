@@ -124,6 +124,26 @@ describe("sidepanel panel state store", () => {
     });
   });
 
+  it("owns local panel session state", () => {
+    const store = createPanelStateStore();
+
+    store.dispatch({
+      type: "panel-session-update",
+      value: {
+        autoSummarize: true,
+        settingsHydrated: true,
+        lastAction: "summarize",
+      },
+    });
+
+    expect(store.state.panelSession).toMatchObject({
+      autoSummarize: true,
+      settingsHydrated: true,
+      lastAction: "summarize",
+      chatEnabled: true,
+    });
+  });
+
   it("restores cached sessions without replacing omitted slides", () => {
     const store = createPanelStateStore();
     store.dispatch({
