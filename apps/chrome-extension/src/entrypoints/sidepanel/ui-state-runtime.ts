@@ -87,14 +87,6 @@ type UiStateRuntimeOpts = {
   isRefreshFreeRunning: () => boolean;
   setModelRefreshDisabled: (value: boolean) => void;
   renderMarkdownHostEl: HTMLElement;
-  getLastPanelOpen: () => boolean;
-  setLastPanelOpen: (value: boolean) => void;
-  getAutoValue: () => boolean;
-  setAutoValue: (value: boolean) => void;
-  getChatEnabledValue: () => boolean;
-  setChatEnabledValue: (value: boolean) => void;
-  setAutomationEnabledValue: (value: boolean) => void;
-  getAutomationEnabledValue: () => boolean;
   setSlidesEnabledValue: (value: boolean) => void;
   getSlidesEnabledValue: () => boolean;
   setSlidesParallelValue: (value: boolean) => void;
@@ -167,11 +159,16 @@ function applyCachedOrReset(
 
 export function createUiStateRuntime(opts: UiStateRuntimeOpts) {
   function apply(state: UiState) {
-    if (state.panelOpen && !opts.getLastPanelOpen()) {
+    if (state.panelOpen && !opts.panelState.panelSession.lastPanelOpen) {
       opts.clearInlineError();
     }
-    opts.setLastPanelOpen(state.panelOpen);
-    opts.setAutoValue(state.settings.autoSummarize);
+    dispatchPanelState(opts, {
+      type: "panel-session-update",
+      value: {
+        lastPanelOpen: state.panelOpen,
+        autoSummarize: state.settings.autoSummarize,
+      },
+    });
     opts.appearanceControls.setAutoValue(state.settings.autoSummarize);
 
     const { activeTabId, activeTabUrl } = opts.panelState.navigation;
@@ -179,7 +176,7 @@ export function createUiStateRuntime(opts: UiStateRuntimeOpts) {
     const inputModeOverride = opts.getInputModeOverride();
     const inputMode = opts.getInputMode();
     const mediaAvailable = opts.getMediaAvailable();
-    const chatEnabledValue = opts.getChatEnabledValue();
+    const chatEnabledValue = opts.panelState.panelSession.chatEnabled;
     const slidesLayoutValue = opts.getSlidesLayoutValue();
 
     const ignoreTransientTabState = shouldIgnoreTransientPanelTabState({
@@ -196,7 +193,7 @@ export function createUiStateRuntime(opts: UiStateRuntimeOpts) {
     const hasActiveChat =
       opts.panelState.chatStreaming ||
       opts.chatController.getMessages().length > 0 ||
-      opts.getChatEnabledValue();
+      chatEnabledValue;
     const hasMediaInfo = state.media != null;
     const mediaFromState = Boolean(state.media && (state.media.hasVideo || state.media.hasAudio));
     const preserveChatForTab =
@@ -272,8 +269,13 @@ export function createUiStateRuntime(opts: UiStateRuntimeOpts) {
       }
     }
 
-    opts.setChatEnabledValue(state.settings.chatEnabled);
-    opts.setAutomationEnabledValue(state.settings.automationEnabled);
+    dispatchPanelState(opts, {
+      type: "panel-session-update",
+      value: {
+        chatEnabled: state.settings.chatEnabled,
+        automationEnabled: state.settings.automationEnabled,
+      },
+    });
     opts.setSlidesEnabledValue(state.settings.slidesEnabled);
     opts.setSlidesParallelValue(state.settings.slidesParallel);
     const nextSlidesOcrEnabled = Boolean(state.settings.slidesOcrEnabled);
@@ -303,7 +305,7 @@ export function createUiStateRuntime(opts: UiStateRuntimeOpts) {
     if (state.settings.slidesLayout && state.settings.slidesLayout !== slidesLayoutValue) {
       opts.setSlidesLayout(state.settings.slidesLayout);
     }
-    if (opts.getAutomationEnabledValue()) opts.hideAutomationNotice();
+    if (opts.panelState.panelSession.automationEnabled) opts.hideAutomationNotice();
     if (!opts.getSlidesEnabledValue()) opts.hideSlideNotice();
     if (
       opts.getSlidesEnabledValue() &&
@@ -315,7 +317,7 @@ export function createUiStateRuntime(opts: UiStateRuntimeOpts) {
     }
     opts.applyChatEnabled();
     if (
-      opts.getChatEnabledValue() &&
+      opts.panelState.panelSession.chatEnabled &&
       opts.panelState.navigation.activeTabId &&
       !shouldPreferUrlMode(nextTabUrl ?? "") &&
       opts.chatController.getMessages().length === 0

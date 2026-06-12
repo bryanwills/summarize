@@ -1408,22 +1408,6 @@ const uiStateRuntime = createUiStateRuntime({
     modelRefreshBtn.disabled = value;
   },
   renderMarkdownHostEl,
-  getLastPanelOpen: () => getPanelSession().lastPanelOpen,
-  setLastPanelOpen: (value) => {
-    updatePanelSession({ lastPanelOpen: value });
-  },
-  getAutoValue: () => getPanelSession().autoSummarize,
-  setAutoValue: (value) => {
-    updatePanelSession({ autoSummarize: value });
-  },
-  getChatEnabledValue: () => getPanelSession().chatEnabled,
-  setChatEnabledValue: (value) => {
-    updatePanelSession({ chatEnabled: value });
-  },
-  getAutomationEnabledValue: () => getPanelSession().automationEnabled,
-  setAutomationEnabledValue: (value) => {
-    updatePanelSession({ automationEnabled: value });
-  },
   getSlidesEnabledValue: () => getSlidesState().slidesEnabled,
   setSlidesEnabledValue: (value) => {
     updateSlidesState({ slidesEnabled: value });
