@@ -28,7 +28,7 @@ mocks.streamSimple.mockImplementation((_model: MockModel) =>
   makeTextDeltaStream(["o", "k"], makeAssistantMessage({ text: "ok" })),
 );
 
-vi.mock("@earendil-works/pi-ai/compat", () => ({
+vi.mock("@earendil-works/pi-ai", () => ({
   completeSimple: mocks.completeSimple,
   streamSimple: mocks.streamSimple,
   getModel: mocks.getModel,

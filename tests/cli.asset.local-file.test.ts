@@ -34,7 +34,7 @@ mocks.streamSimple.mockImplementation(() =>
   ),
 );
 
-vi.mock("@earendil-works/pi-ai/compat", () => ({
+vi.mock("@earendil-works/pi-ai", () => ({
   streamSimple: mocks.streamSimple,
   completeSimple: mocks.completeSimple,
   getModel: mocks.getModel,

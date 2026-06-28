@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
   }),
 }));
 
-vi.mock("@earendil-works/pi-ai/compat", () => ({
+vi.mock("@earendil-works/pi-ai", () => ({
   completeSimple: mocks.completeSimple,
   getModel: mocks.getModel,
 }));

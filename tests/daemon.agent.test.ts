@@ -21,7 +21,7 @@ vi.mock("../src/llm/cli.js", async (importOriginal) => {
   };
 });
 
-vi.mock("@earendil-works/pi-ai/compat", () => {
+vi.mock("@earendil-works/pi-ai", () => {
   return {
     completeSimple: mockCompleteSimple,
     getModel: mockGetModel,
