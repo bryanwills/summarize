@@ -47,6 +47,7 @@ export async function tryNativeYoutubeMediaTranscript(
     return {
       text: normalizeTranscriptText(result.text),
       source: "youtube-media",
+      segments: result.segments ?? null,
       metadata: {
         provider: "youtube-media",
         resolver: media.resolver,

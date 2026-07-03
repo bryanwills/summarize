@@ -140,6 +140,7 @@ export async function tryPodcastYtDlpTranscript(
     return {
       text: result.text,
       source: result.text ? "yt-dlp" : null,
+      segments: result.segments ?? null,
       attemptedProviders: flow.attemptedProviders,
       notes: joinNotes(flow.notes),
       metadata: { provider: "podcast", kind: "yt_dlp", transcriptionProvider: result.provider },

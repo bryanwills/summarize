@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
     text: "ok",
     provider: "openai" as const,
     notes: ["yt-dlp used"],
+    segments: [{ startMs: 100, endMs: 900, text: "ok" }],
   })),
 }));
 
@@ -34,6 +35,7 @@ describe("podcast transcript provider - yt-dlp branch", () => {
     );
     expect(result.source).toBe("yt-dlp");
     expect(result.text).toBe("ok");
+    expect(result.segments).toEqual([{ startMs: 100, endMs: 900, text: "ok" }]);
     expect(result.metadata?.kind).toBe("yt_dlp");
     expect(result.notes).toContain("yt-dlp used");
   });
