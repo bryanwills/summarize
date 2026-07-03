@@ -22,6 +22,7 @@ export function buildWhisperResult({
     return {
       text: outcome.text,
       source: "whisper",
+      segments: outcome.segments ?? null,
       attemptedProviders,
       notes: joinNotes(notes),
       metadata: {

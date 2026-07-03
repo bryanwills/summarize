@@ -8,6 +8,7 @@ import {
   probeMediaDurationSecondsWithFfprobe,
   transcribeMediaFileWithWhisper,
   transcribeMediaWithWhisper,
+  type TranscriptionSegment,
 } from "../../../../transcription/whisper.js";
 import {
   resolveTranscriptionConfig,
@@ -49,6 +50,7 @@ export type TranscriptionResult = {
   text: string | null;
   provider: string | null;
   error: Error | null;
+  segments?: TranscriptionSegment[] | null;
 };
 
 export async function transcribeMediaUrl({
@@ -185,7 +187,12 @@ export async function transcribeMediaUrl({
       },
     });
     if (transcript.notes.length > 0) notes.push(...transcript.notes);
-    return { text: transcript.text, provider: transcript.provider, error: transcript.error };
+    return {
+      text: transcript.text,
+      provider: transcript.provider,
+      error: transcript.error,
+      segments: transcript.segments ?? null,
+    };
   }
 
   const tmpFile = join(tmpdir(), `summarize-podcast-${randomUUID()}.bin`);
@@ -248,7 +255,12 @@ export async function transcribeMediaUrl({
       },
     });
     if (transcript.notes.length > 0) notes.push(...transcript.notes);
-    return { text: transcript.text, provider: transcript.provider, error: transcript.error };
+    return {
+      text: transcript.text,
+      provider: transcript.provider,
+      error: transcript.error,
+      segments: transcript.segments ?? null,
+    };
   } finally {
     await fs.unlink(tmpFile).catch(() => {});
   }

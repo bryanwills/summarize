@@ -208,6 +208,7 @@ const BYTE_PROVIDER_EXECUTORS: Record<
     transcribeOversizedBytesWithChunking,
   }) => {
     let nextState = state;
+    let truncatedForOpenAi = false;
     if (
       nextState.bytes.byteLength > MAX_OPENAI_UPLOAD_BYTES &&
       transcribeOversizedBytesWithChunking &&
@@ -233,6 +234,7 @@ const BYTE_PROVIDER_EXECUTORS: Record<
         ...nextState,
         bytes: nextState.bytes.slice(0, MAX_OPENAI_UPLOAD_BYTES),
       };
+      truncatedForOpenAi = true;
     }
 
     let error: Error | null = null;
@@ -290,7 +292,8 @@ const BYTE_PROVIDER_EXECUTORS: Record<
       }
     }
 
-    return { state: nextState, result: null, error };
+    // OpenAI's upload cap must not discard source bytes accepted by later providers.
+    return { state: truncatedForOpenAi ? state : nextState, result: null, error };
   },
   fal: async ({ state, falApiKey, notes }) => {
     if (!state.mediaType.toLowerCase().startsWith("audio/")) {

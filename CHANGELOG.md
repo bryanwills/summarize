@@ -2,6 +2,10 @@
 
 ## 0.21.1 - Unreleased
 
+### Fixes
+
+- Deepgram transcription: preserve full media across failed OpenAI fallbacks and retain timestamped utterances through podcast and native YouTube paths.
+
 ## 0.21.0 - 2026-07-03
 
 ### Features

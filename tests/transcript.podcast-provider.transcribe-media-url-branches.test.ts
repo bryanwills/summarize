@@ -134,7 +134,7 @@ describe("podcast provider - transcribeMediaUrl branch coverage", () => {
       Response.json({
         results: {
           channels: [{ alternatives: [{ transcript: "Deepgram podcast transcript" }] }],
-          utterances: [],
+          utterances: [{ start: 0.25, end: 1.5, transcript: "Deepgram podcast transcript" }],
         },
       }),
     );
@@ -148,13 +148,63 @@ describe("podcast provider - transcribeMediaUrl branch coverage", () => {
           fetch: fetchImpl as unknown as typeof fetch,
           openaiApiKey: null,
           deepgramApiKey: "DG",
+          transcriptTimestamps: true,
         },
       );
 
       expect(result.source).toBe("whisper");
       expect(result.text).toBe("Deepgram podcast transcript");
+      expect(result.segments).toEqual([
+        { startMs: 250, endMs: 1500, text: "Deepgram podcast transcript" },
+      ]);
       expect(result.metadata?.transcriptionProvider).toBe("deepgram");
       expect(String(result.notes)).not.toContain("ffmpeg not available");
+    } finally {
+      vi.unstubAllGlobals();
+      vi.doUnmock("node:child_process");
+    }
+  });
+
+  it("preserves Deepgram timestamp segments for in-memory podcast media", async () => {
+    const { fetchTranscript } = await importPodcastProvider({ spawnPlan: "ffmpeg-missing" });
+    const enclosureUrl = "https://example.com/short.mp3";
+    const xml = `<rss><channel><item><enclosure url="${enclosureUrl}" type="audio/mpeg"/></item></channel></rss>`;
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? "GET").toUpperCase() === "HEAD") {
+        return new Response(null, {
+          status: 200,
+          headers: { "content-type": "audio/mpeg", "content-length": "3" },
+        });
+      }
+      return new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { "content-type": "audio/mpeg" },
+      });
+    });
+    const deepgramFetch = vi.fn(async () =>
+      Response.json({
+        results: {
+          channels: [{ alternatives: [{ transcript: "Short episode" }] }],
+          utterances: [{ start: 1, end: 2.25, transcript: "Short episode" }],
+        },
+      }),
+    );
+
+    try {
+      vi.stubGlobal("fetch", deepgramFetch);
+      const result = await fetchTranscript(
+        { url: "https://example.com/feed.xml", html: xml, resourceKey: null },
+        {
+          ...baseOptions,
+          fetch: fetchImpl as unknown as typeof fetch,
+          openaiApiKey: null,
+          deepgramApiKey: "DG",
+          transcriptTimestamps: true,
+        },
+      );
+
+      expect(result.text).toBe("Short episode");
+      expect(result.segments).toEqual([{ startMs: 1000, endMs: 2250, text: "Short episode" }]);
     } finally {
       vi.unstubAllGlobals();
       vi.doUnmock("node:child_process");

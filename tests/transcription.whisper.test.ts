@@ -803,6 +803,50 @@ describe("transcription/whisper", () => {
     }
   });
 
+  it("preserves oversized source bytes when OpenAI fails before Deepgram fallback", async () => {
+    const whisper = await importWhisperWithNoFfmpeg();
+    const originalSize = whisper.MAX_OPENAI_UPLOAD_BYTES + 1;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      if (url.includes("/v1/audio/transcriptions")) {
+        const form = init?.body as FormData;
+        expect((form.get("file") as Blob).size).toBe(whisper.MAX_OPENAI_UPLOAD_BYTES);
+        return new Response("unauthorized", { status: 401 });
+      }
+      if (url.includes("api.deepgram.com/v1/listen")) {
+        expect((init?.body as Blob).size).toBe(originalSize);
+        return Response.json({
+          results: {
+            channels: [{ alternatives: [{ transcript: "Deepgram fallback" }] }],
+            utterances: [],
+          },
+        });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    try {
+      vi.stubGlobal("fetch", fetchMock);
+      const result = await whisper.transcribeMediaWithWhisper({
+        bytes: new Uint8Array(originalSize),
+        mediaType: "audio/mpeg",
+        filename: "audio.mp3",
+        groqApiKey: null,
+        openaiApiKey: "OPENAI",
+        falApiKey: null,
+        deepgramApiKey: "DEEPGRAM",
+      });
+
+      expect(result.text).toBe("Deepgram fallback");
+      expect(result.provider).toBe("deepgram");
+      expect(result.notes.join(" ")).toContain("falling back to Deepgram");
+    } finally {
+      vi.unstubAllGlobals();
+      vi.doUnmock("node:child_process");
+      vi.restoreAllMocks();
+    }
+  });
+
   it("returns a helpful error when FAL returns empty content", async () => {
     falMocks.createFalClient.mockReset().mockReturnValue({
       storage: {
