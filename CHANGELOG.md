@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.21.3 - Unreleased
+
+### Fixes
+
+- Slides: bound optional calibration probes so the bundled FFmpeg fallback cannot stall for minutes when Node shutdown lingers.
+- Daemon setup: report native messaging hosts installed for valid unpacked Chrome extension IDs instead of falsely marking them missing.
+
 ## 0.21.2 - 2026-07-04
 
 ### Fixes

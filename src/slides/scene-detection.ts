@@ -8,6 +8,7 @@ import type { SlideImage } from "./types.js";
 
 const FFMPEG_TIMEOUT_FALLBACK_MS = 300_000;
 const FFMPEG_CAPABILITY_TIMEOUT_MS = 10_000;
+const FFMPEG_CALIBRATION_SAMPLE_TIMEOUT_MS = 10_000;
 
 export type FfmpegVfrArgs = ["-fps_mode" | "-vsync", "vfr"];
 
@@ -162,7 +163,10 @@ async function hashFrameAtTimestamp({
         "gray",
         "-",
       ],
-      timeoutMs,
+      // Calibration is optional. A bundled WebAssembly runner can finish the
+      // frame and then linger during Node/V8 shutdown, so do not let one sample
+      // consume the full request timeout and block the remaining slide work.
+      timeoutMs: Math.min(Math.max(timeoutMs, 1), FFMPEG_CALIBRATION_SAMPLE_TIMEOUT_MS),
       errorLabel: "ffmpeg",
     });
     if (buffer.length < 1024) return null;

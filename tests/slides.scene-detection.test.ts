@@ -22,6 +22,7 @@ import {
   buildIntervalTimestamps,
   buildSceneSegments,
   buildSegments,
+  calibrateSceneThreshold,
   clamp,
   detectSceneTimestamps,
   filterTimestampsByMinDuration,
@@ -196,6 +197,23 @@ describe("slides scene detection", () => {
       timeoutMs: 10_000,
       errorLabel: "ffmpeg",
     });
+  });
+
+  it("bounds optional calibration samples independently of the request timeout", async () => {
+    mocks.runProcessCaptureBuffer.mockResolvedValue(Buffer.alloc(1024, 128));
+
+    await calibrateSceneThreshold({
+      ffmpegPath: "ffmpeg",
+      inputPath: "/tmp/video.mp4",
+      durationSeconds: 10,
+      sampleCount: 3,
+      timeoutMs: 120_000,
+    });
+
+    expect(mocks.runProcessCaptureBuffer).toHaveBeenCalledTimes(3);
+    for (const call of mocks.runProcessCaptureBuffer.mock.calls) {
+      expect(call[0].timeoutMs).toBe(10_000);
+    }
   });
 
   it("reports the calibrated threshold when interval fallback replaces zero scene detections", async () => {

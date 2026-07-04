@@ -11,6 +11,7 @@ import {
 } from "./constants.js";
 
 const execFile = promisify(execFileCallback);
+const CHROME_EXTENSION_ORIGIN_PATTERN = /^chrome-extension:\/\/[a-p]{32}\/$/u;
 
 export type NativeMessagingInstallResult = {
   installed: boolean;
@@ -136,7 +137,9 @@ export async function isNativeMessagingHostInstalled({
     return (
       manifest.name === NATIVE_MESSAGING_HOST_NAME &&
       Array.isArray(manifest.allowed_origins) &&
-      manifest.allowed_origins.includes(`chrome-extension://${CHROME_EXTENSION_ID}/`)
+      manifest.allowed_origins.some(
+        (origin) => typeof origin === "string" && CHROME_EXTENSION_ORIGIN_PATTERN.test(origin),
+      )
     );
   } catch {
     return false;

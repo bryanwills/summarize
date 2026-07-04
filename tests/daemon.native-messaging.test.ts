@@ -7,6 +7,7 @@ import {
   buildNativeMessagingLauncher,
   buildNativeMessagingManifest,
   installNativeMessagingHost,
+  isNativeMessagingHostInstalled,
   resolveChromeNativeMessagingManifestPath,
   uninstallNativeMessagingHost,
 } from "../src/daemon/native-messaging-install.js";
@@ -200,6 +201,25 @@ describe("native messaging installation", () => {
     await uninstallNativeMessagingHost({ env, platform: "darwin" });
     await expect(fs.access(manifestPath!)).rejects.toThrow();
     await expect(fs.access(result.launcherPath!)).rejects.toThrow();
+  });
+
+  it("recognizes a host installed for a valid unpacked extension ID", async () => {
+    const home = await createHome();
+    const env = { HOME: home };
+    const extensionId = "gnnjfmadnbnbbpadbajhdnknfcleljef";
+    const result = await installNativeMessagingHost({
+      env,
+      platform: "darwin",
+      extensionId,
+      program: { programArguments: ["/opt/node/bin/node", "/opt/summarize/cli.js"] },
+    });
+
+    await expect(isNativeMessagingHostInstalled({ env, platform: "darwin" })).resolves.toBe(true);
+
+    const manifest = JSON.parse(await fs.readFile(result.manifestPath!, "utf8"));
+    manifest.allowed_origins = ["https://example.com/"];
+    await fs.writeFile(result.manifestPath!, `${JSON.stringify(manifest)}\n`);
+    await expect(isNativeMessagingHostInstalled({ env, platform: "darwin" })).resolves.toBe(false);
   });
 
   it("reports the Windows executable packaging requirement without writing a weak launcher", async () => {
