@@ -70,7 +70,7 @@
   },
   "scripts": {
     "build": "pnpm clean && tsgo -p tsconfig.build.json && node scripts/package-ffmpeg-wasm.mjs",
-    "clean": "rimraf dist",
+    "clean": "node ../../scripts/clean.mjs dist",
     "prepublishOnly": "node ../../scripts/require-pnpm-publish.mjs",
     "typecheck": "tsgo -p tsconfig.build.json --noEmit"
   },
@@ -83,7 +83,6 @@
   "devDependencies": {
     "@types/node": "^24.13.3",
     "@types/sanitize-html": "^2.16.1",
-    "rimraf": "^6.1.3",
     "typescript": "^6.0.3"
   },
   "engines": {

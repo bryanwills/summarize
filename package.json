@@ -39,7 +39,7 @@
     "build:cli": "node scripts/build-cli.mjs",
     "build:lib": "tsgo -p tsconfig.build.json",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage",
-    "clean": "rimraf dist packages/core/dist",
+    "clean": "node scripts/clean.mjs dist packages/core/dist",
     "dev:cli": "node --import ./scripts/register-typescript.mjs src/cli.ts",
     "docs:build": "node scripts/build-docs-site.mjs",
     "docs:list": "node --import ./scripts/register-typescript.mjs scripts/docs-list.ts",
@@ -81,7 +81,6 @@
     "oxfmt": "0.59.0",
     "oxlint": "^1.74.0",
     "oxlint-tsgolint": "^0.25.0",
-    "rimraf": "^6.1.3",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   },
