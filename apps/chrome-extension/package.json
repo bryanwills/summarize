@@ -23,9 +23,9 @@
     "@huggingface/transformers": "4.2.0",
     "@mozilla/readability": "0.6.0",
     "@steipete/summarize-core": "workspace:*",
-    "googlevideo": "4.0.4",
+    "googlevideo": "4.1.1",
     "markdown-it": "^14.3.0",
-    "mediabunny": "1.50.8",
+    "mediabunny": "1.50.9",
     "preact": "10.29.7"
   },
   "devDependencies": {

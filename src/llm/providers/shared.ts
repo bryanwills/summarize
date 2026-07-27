@@ -1,5 +1,5 @@
 import type { Api, AssistantMessage, Context, KnownProvider, Model } from "@earendil-works/pi-ai";
-import { getModel } from "@earendil-works/pi-ai/compat";
+import { getModel, type BuiltinProvider } from "@earendil-works/pi-ai/compat";
 
 export function resolveBaseUrlOverride(raw: string | null | undefined): string | null {
   const trimmed = typeof raw === "string" ? raw.trim() : "";
@@ -36,7 +36,7 @@ export function wantsImages(context: Context): boolean {
   return false;
 }
 
-export function tryGetModel(provider: KnownProvider, modelId: string): Model<Api> | null {
+export function tryGetModel(provider: BuiltinProvider, modelId: string): Model<Api> | null {
   try {
     return getModel(provider, modelId as never) as unknown as Model<Api>;
   } catch {

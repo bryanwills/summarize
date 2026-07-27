@@ -3,6 +3,7 @@
 ## 0.21.7 - Unreleased
 
 - Release pipeline: sign the Bun macOS executables with the personal Developer ID, notarize them with Apple, verify both architectures without signing credentials, and publish only the verified artifacts.
+- Dependencies: refresh the policy-eligible CLI, browser-media, test, formatting, and lint toolchain.
 
 ## 0.21.6 - 2026-07-18
 
