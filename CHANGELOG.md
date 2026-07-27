@@ -1,10 +1,16 @@
 # Changelog
 
-## 0.21.7 - Unreleased
+## 0.21.7 - 2026-07-27
 
-- Release pipeline: sign the Bun macOS executables with the personal Developer ID, notarize them with Apple, verify both architectures without signing credentials, and publish only the verified artifacts.
-- Dependencies: refresh the policy-eligible CLI, browser-media, test, formatting, and lint toolchain, including patched protobufjs and sharp transitive releases.
+### Highlights
+
 - Chrome extension: restore persisted Logs and Processes tabs without aborting options-page startup (#370, #371; thanks @ostehost).
+- Refresh policy-eligible dependencies and remove the vulnerable cleanup chain, including patched protobufjs and sharp transitive releases.
+
+### Dependencies and maintenance
+
+- Refresh the CLI, browser-media, test, formatting, lint, and GitHub Actions toolchain.
+- Sign and notarize the Bun macOS executables, verify both architectures without signing credentials, and publish only the verified artifacts.
 
 ## 0.21.6 - 2026-07-18
 
