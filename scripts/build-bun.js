@@ -6,7 +6,15 @@
 
 // Don't use Bun shell ($) as it breaks bytecode compilation.
 import { spawn, spawnSync } from "node:child_process";
-import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, statSync } from "node:fs";
+import {
+  copyFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  statSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,6 +24,7 @@ const distDir = join(projectRoot, "dist-bun");
 const ffmpegWasmAssetsDir = join(projectRoot, "packages/core/vendor/ffmpeg-wasm/node");
 const ffmpegWasmRunnerEntry = join(projectRoot, "packages/core/src/ffmpeg-wasm/run-generated.ts");
 const ffmpegWasmRunnerPath = join(distDir, "ffmpeg-wasm-run-generated.js");
+const bpeLiteShimPath = join(projectRoot, "scripts/bun-bpe-lite.mjs");
 const require = createRequire(import.meta.url);
 const MAC_TARGETS = [
   { arch: "arm64", target: "bun-darwin-arm64", outName: "summarize" },
@@ -79,28 +88,41 @@ function chmodX(path) {
   run("chmod", ["+x", path]);
 }
 
-function buildOne({ arch, target, outName, version, gitSha }) {
+function assertNoExternalTokenizerPath(path) {
+  const binary = readFileSync(path);
+  const leakedPaths = ["node_modules/.pnpm/bpe-lite", "bpe-lite/src/index.mjs"];
+  for (const leakedPath of leakedPaths) {
+    if (binary.includes(Buffer.from(leakedPath))) {
+      throw new Error(`compiled binary retains external tokenizer path: ${leakedPath}`);
+    }
+  }
+}
+
+async function buildOne({ arch, target, outName, version, gitSha }) {
   const outPath = join(distDir, outName);
   console.log(`\n🔨 Building ${outName} (target=${target}, bytecode)…`);
-  const env = { ...process.env };
-  if (version) env.SUMMARIZE_VERSION = version;
-  if (gitSha) env.SUMMARIZE_GIT_SHA = gitSha;
-  run(
-    "bun",
-    [
-      "build",
-      join(projectRoot, "src/cli.ts"),
-      "--compile",
-      "--bytecode",
-      "--minify",
-      "--target",
-      target,
-      "--env=SUMMARIZE_*",
-      "--outfile",
-      outPath,
+  if (version) process.env.SUMMARIZE_VERSION = version;
+  if (gitSha) process.env.SUMMARIZE_GIT_SHA = gitSha;
+  const result = await Bun.build({
+    entrypoints: [join(projectRoot, "src/cli.ts")],
+    compile: { target, outfile: outPath },
+    bytecode: true,
+    minify: true,
+    env: "SUMMARIZE_*",
+    plugins: [
+      {
+        name: "bundle-bpe-lite",
+        setup(build) {
+          build.onResolve({ filter: /^bpe-lite$/ }, () => ({ path: bpeLiteShimPath }));
+        },
+      },
     ],
-    { env },
-  );
+  });
+  if (!result.success) {
+    for (const log of result.logs) console.error(log);
+    throw new Error(`bun build failed for ${target}`);
+  }
+  assertNoExternalTokenizerPath(outPath);
   chmodX(outPath);
   run(join(projectRoot, "scripts", "codesign-macos.sh"), [outPath, arch]);
 
@@ -146,13 +168,13 @@ function packageTarball({ binaryPath, version, arch }) {
   return tarPath;
 }
 
-function buildMacosTargets({ version }) {
+async function buildMacosTargets({ version }) {
   const gitSha = readGitSha();
   const builds = {};
   buildFfmpegWasmRunner();
 
   for (const { arch, target, outName } of MAC_TARGETS) {
-    const binary = buildOne({ arch, target, outName, version, gitSha });
+    const binary = await buildOne({ arch, target, outName, version, gitSha });
     const tarPath = packageTarball({ binaryPath: binary, version, arch });
     builds[arch] = { binary, tarPath };
   }
@@ -260,7 +282,7 @@ async function main() {
     mkdirSync(distDir, { recursive: true });
   }
 
-  const builds = buildMacosTargets({ version });
+  const builds = await buildMacosTargets({ version });
 
   if (process.argv.includes("--test")) {
     const hostBuild = pickHostBinary(builds);

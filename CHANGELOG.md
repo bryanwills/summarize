@@ -11,6 +11,7 @@
 
 - Refresh the CLI, browser-media, test, formatting, lint, and GitHub Actions toolchain.
 - Sign and notarize the Bun macOS executables, verify both architectures without signing credentials, and publish only the verified artifacts.
+- Embed the tokenizer vocabulary in standalone Bun executables so release binaries do not depend on checkout files.
 
 ## 0.21.6 - 2026-07-18
 
