@@ -55,7 +55,7 @@ Ship is **not done** until:
      ```bash
      scripts/release.sh publish
      ```
-   - This publishes core first, then CLI, both with `pnpm publish --tag next`.
+   - This publishes core first, then CLI, both with `pnpm publish --tag next`. The CLI's prepublish guard refuses to proceed until that exact core version is visible on npm.
    - It blocks raw `npm publish` via `prepublishOnly`, verifies tarball metadata has no `workspace:*`, smokes the exact version with `pnpm dlx`, and only then promotes both packages to `latest`.
    - If exact-version smoke fails, do not tag or create a GitHub Release. Deprecate the broken CLI version and ship a patch:
      ```bash
