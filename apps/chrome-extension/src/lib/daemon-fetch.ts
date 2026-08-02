@@ -21,6 +21,22 @@ type NativeResponseMessage =
   | { type: "end" }
   | { type: "error"; message: string };
 
+type NativeMessagingRuntime = {
+  connectNative?: typeof chrome.runtime.connectNative;
+  reload: typeof chrome.runtime.reload;
+};
+
+export function connectNativeOrReload(
+  runtime: NativeMessagingRuntime,
+  hostName: string,
+): chrome.runtime.Port {
+  if (typeof runtime.connectNative !== "function") {
+    runtime.reload();
+    throw new Error("Local companion enabled — extension reloaded; reopen it and retry");
+  }
+  return runtime.connectNative(hostName);
+}
+
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
   const chunkSize = 32_768;
@@ -184,7 +200,7 @@ export async function daemonFetch(input: RequestInfo | URL, init?: RequestInit):
     const permitted = await chrome.permissions.contains({ permissions: ["nativeMessaging"] });
     if (!permitted) throw new Error("Local companion permission is not enabled");
     return await nativeDaemonFetch(input, init, () =>
-      chrome.runtime.connectNative(NATIVE_MESSAGING_HOST_NAME),
+      connectNativeOrReload(chrome.runtime, NATIVE_MESSAGING_HOST_NAME),
     );
   }
   return await nativeDaemonFetch(input, init);
@@ -238,7 +254,7 @@ export function bindNativeDaemonBridge(): void {
           return;
         }
         try {
-          nativePort = chrome.runtime.connectNative(NATIVE_MESSAGING_HOST_NAME);
+          nativePort = connectNativeOrReload(chrome.runtime, NATIVE_MESSAGING_HOST_NAME);
         } catch (error) {
           sendError(error instanceof Error ? error.message : String(error));
           return;
