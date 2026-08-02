@@ -30,6 +30,13 @@ afterEach(() => {
 });
 
 describe("version resolution coverage", () => {
+  it("resolves package and Git metadata without an import URL", () => {
+    process.env.SUMMARIZE_VERSION = " ";
+    process.env.SUMMARIZE_GIT_SHA = " ";
+    expect(resolvePackageVersion()).toBe(FALLBACK_VERSION);
+    expect(resolveGitSha()).toMatch(/^[0-9a-f]{8}$/);
+  });
+
   it("handles injected, nested, invalid, and fallback package versions", () => {
     process.env.SUMMARIZE_VERSION = " 1.2.3 ";
     expect(resolvePackageVersion()).toBe("1.2.3");
@@ -42,6 +49,10 @@ describe("version resolution coverage", () => {
     expect(resolvePackageVersion(pathToFileURL(join(nested, "module.js")).href)).toBe("2.3.4");
 
     writeFileSync(join(root, "package.json"), '{"version":1}');
+    expect(resolvePackageVersion(pathToFileURL(join(nested, "module.js")).href)).toBe(
+      FALLBACK_VERSION,
+    );
+    writeFileSync(join(root, "package.json"), '{"version":"   "}');
     expect(resolvePackageVersion(pathToFileURL(join(nested, "module.js")).href)).toBe(
       FALLBACK_VERSION,
     );
@@ -94,6 +105,11 @@ describe("version resolution coverage", () => {
     );
     expect(resolveGitSha(url)).toBe("fedcba98");
 
+    mkdirSync(join(gitDir, "refs", "heads"), { recursive: true });
+    writeFileSync(join(gitDir, "refs", "heads", "main"), "   \n");
+    writeFileSync(join(gitDir, "packed-refs"), " refs/heads/main\n");
+    expect(resolveGitSha(url)).toBeNull();
+
     writeFileSync(join(gitDir, "HEAD"), "ref: \n");
     expect(resolveGitSha(url)).toBeNull();
     writeFileSync(join(checkout, ".git"), "not a gitdir\n");
@@ -112,8 +128,11 @@ describe("version resolution coverage", () => {
     writeFileSync(join(checkout, "package.json"), '{"version":"1.0.0"}');
     writeFileSync(join(checkout, ".git"), `gitdir: ${gitDir}\n`);
     writeFileSync(join(gitDir, "HEAD"), "ref: refs/heads/main\n");
-    writeFileSync(join(gitDir, "commondir"), "../..\n");
+    writeFileSync(join(gitDir, "commondir"), `${commonDir}\n`);
     writeFileSync(join(commonDir, "packed-refs"), "abcdef1234567890 refs/heads/main\n");
+    expect(resolveGitSha(pathToFileURL(join(moduleDir, "module.js")).href)).toBe("abcdef12");
+
+    writeFileSync(join(gitDir, "commondir"), "../..\n");
     expect(resolveGitSha(pathToFileURL(join(moduleDir, "module.js")).href)).toBe("abcdef12");
 
     writeFileSync(join(gitDir, "commondir"), "\n");

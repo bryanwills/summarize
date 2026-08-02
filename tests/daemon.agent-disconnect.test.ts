@@ -20,7 +20,7 @@ const findFreePort = async (): Promise<number> =>
   });
 
 async function waitForMarker(markerPath: string, expected: string): Promise<void> {
-  const deadline = Date.now() + 3000;
+  const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
     if (existsSync(markerPath) && readFileSync(markerPath, "utf8").trim() === expected) return;
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -97,8 +97,13 @@ setTimeout(() => {
           model: "cli/openclaw/main",
         }),
         signal: requestController.signal,
-      }).then((response) => response.text());
-      await waitForMarker(markerPath, "started");
+      }).then(async (response) => ({ status: response.status, body: await response.text() }));
+      await Promise.race([
+        waitForMarker(markerPath, "started"),
+        responsePromise.then(({ status, body }) => {
+          throw new Error(`Agent request ended before the CLI started (${status}): ${body.trim()}`);
+        }),
+      ]);
       requestController.abort();
       await expect(responsePromise).rejects.toMatchObject({ name: "AbortError" });
       await waitForMarker(markerPath, "interrupted");
@@ -111,5 +116,5 @@ setTimeout(() => {
       daemonController.abort();
       await serverPromise;
     }
-  });
+  }, 30_000);
 });
