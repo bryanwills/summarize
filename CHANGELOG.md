@@ -6,6 +6,10 @@
 
 - Chrome extension: reload stale service workers after granting Native Messaging so daemon requests recover on retry (#372, thanks @materemias).
 
+### Dependencies and maintenance
+
+- Refresh policy-eligible runtime, browser media, test, formatting, and lint dependencies.
+
 ## 0.21.7 - 2026-07-27
 
 ### Highlights
