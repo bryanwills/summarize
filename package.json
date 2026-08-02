@@ -60,7 +60,7 @@
     "typecheck": "pnpm -C packages/core typecheck && tsgo -p tsconfig.build.json --noEmit"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "^0.80.10",
+    "@earendil-works/pi-ai": "^0.82.1",
     "@steipete/summarize-core": "workspace:*",
     "bpe-lite": "^0.5.2",
     "commander": "^15.0.0",
@@ -70,17 +70,17 @@
     "mime": "^4.1.0",
     "osc-progress": "^0.3.2",
     "tokentally": "^0.1.2",
-    "undici": "8.7.0"
+    "undici": "8.9.0"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
     "@types/sanitize-html": "^2.16.1",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "@vitest/coverage-v8": "^4.1.10",
-    "happy-dom": "^20.11.0",
-    "oxfmt": "0.59.0",
-    "oxlint": "^1.74.0",
-    "oxlint-tsgolint": "^0.25.0",
+    "happy-dom": "^20.11.1",
+    "oxfmt": "0.60.0",
+    "oxlint": "^1.75.0",
+    "oxlint-tsgolint": "^7.0.2001",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   },
