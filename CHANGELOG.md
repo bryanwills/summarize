@@ -2,6 +2,10 @@
 
 ## 0.21.8 - Unreleased
 
+### Fixes
+
+- Chrome extension: reload stale service workers after granting Native Messaging so daemon requests recover on retry (#372, thanks @materemias).
+
 ## 0.21.7 - 2026-07-27
 
 ### Highlights
