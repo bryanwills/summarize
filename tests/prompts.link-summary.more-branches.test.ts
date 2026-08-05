@@ -75,7 +75,7 @@ describe("prompts/link-summary - more branches", () => {
       shares: [],
     });
     expect(prompt).toContain("You are not given any quotes");
-    expect(prompt).toContain("online articles");
+    expect(prompt).toContain("web pages");
   });
 
   it("respects explicit maxCharacters when below content length", () => {

@@ -102,8 +102,8 @@ export function buildLinkSummaryPrompt({
   const contextHeader = contextLines.join("\n");
 
   const audienceLine = hasTranscript
-    ? "You summarize online videos for curious Twitter users who want to know whether the clip is worth watching."
-    : "You summarize online articles for curious Twitter users who want the gist before deciding to dive in.";
+    ? "You summarize online videos and transcripts for curious readers who want the key ideas before deciding whether to watch."
+    : "You summarize web pages, including articles, posts, and discussion threads, for curious readers who want the gist before deciding to dive in.";
 
   const effectiveSummaryLength: SummaryLengthTarget =
     typeof summaryLength === "string"
@@ -202,8 +202,18 @@ export function buildLinkSummaryPrompt({
           `Required markers (use each exactly once, in order): ${slideMarkers}`,
         ].join("\n")
       : "";
-  const listGuidanceLine =
-    "Use short paragraphs; use bullet lists only when they improve scanability; avoid rigid templates.";
+  const sourceStructureInstruction =
+    slides && slides.count > 0
+      ? ""
+      : "Adapt the structure to the source. For an article or transcript, lead with the central claim or takeaway and group supporting details by theme or chronology. For a discussion or comment thread, synthesize the main viewpoints and, when present, areas of agreement, disagreement, evidence, and caveats. Do not recap comments one by one or organize the summary around usernames.";
+  const structureGuidanceLine =
+    slides && slides.count > 0
+      ? ""
+      : 'Make multi-point summaries easy to scan. Lead with a concise overview, then separate distinct themes or viewpoints with descriptive Markdown headings using the "### " prefix and/or short bullet lists. Keep paragraphs short and never put a multi-point summary in one uninterrupted paragraph. For a short or simple source, do not force headings or lists.';
+  const markdownSpacingInstruction =
+    slides && slides.count > 0
+      ? "Keep the response compact by avoiding blank lines between sentences or list items; use only the single newlines required by the formatting instructions."
+      : "Use one blank line between Markdown blocks such as paragraphs, headings, and lists. Keep list items on consecutive lines with no blank lines between them.";
   const quoteGuidanceLine =
     "Include 1-2 short exact excerpts (max 25 words each) formatted as Markdown italics using single asterisks when there is a strong, non-sponsor line. Use straight quotation marks (no curly) as needed. If no suitable line exists, omit excerpts. Never include ad/sponsor/boilerplate excerpts and do not mention them.";
   const sponsorInstruction =
@@ -216,7 +226,7 @@ export function buildLinkSummaryPrompt({
           sponsorInstruction,
           formattingLine,
           headingInstruction,
-          "Keep the response compact by avoiding blank lines between sentences or list items; use only the single newlines required by the formatting instructions.",
+          markdownSpacingInstruction,
           "Do not use emojis, disclaimers, or speculation.",
           "Write in direct, factual language.",
           "Format the answer in Markdown.",
@@ -230,6 +240,7 @@ export function buildLinkSummaryPrompt({
     "Hard rules: never mention sponsor/ads; use straight quotation marks only (no curly quotes).",
     "Apostrophes in contractions are OK.",
     audienceLine,
+    sourceStructureInstruction,
     sponsorInstruction,
     directive.guidance,
     formattingLine,
@@ -238,11 +249,11 @@ export function buildLinkSummaryPrompt({
     maxCharactersLine,
     contentLengthLine,
     formatOutputLanguageInstruction(outputLanguage ?? { kind: "auto" }),
-    "Keep the response compact by avoiding blank lines between sentences or list items; use only the single newlines required by the formatting instructions.",
+    markdownSpacingInstruction,
     "Do not use emojis, disclaimers, or speculation.",
     "Write in direct, factual language.",
     "Format the answer in Markdown and obey the length-specific formatting above.",
-    listGuidanceLine,
+    structureGuidanceLine,
     quoteGuidanceLine,
     "Base everything strictly on the provided content and never invent details.",
     "Final check: remove any sponsor/ad references or mentions of skipping/ignoring content. Ensure excerpts (if any) are italicized and use only straight quotes.",

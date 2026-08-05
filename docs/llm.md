@@ -80,7 +80,7 @@ installed, auto mode can use local CLI models via `cli.enabled` or implicit auto
 - `--model <preset>`
   - Uses a built-in or config-defined preset (see `docs/config.md` → “Presets”).
 - `--prompt <text>` / `--prompt-file <path>`
-  - Overrides the built-in summary instructions (prompt becomes the instruction prefix).
+  - Replaces the built-in summary instructions, including the default structure and formatting guidance.
   - Prompts are wrapped in `<instructions>`, `<context>`, `<content>` tags.
   - When `--length` is numeric, we add `Output is X characters.` When `--language` is explicitly set, we add `Output should be <language>.`
 - `--no-cache`
@@ -96,7 +96,7 @@ installed, auto mode can use local CLI models via `cli.enabled` or implicit auto
   - Minimum numeric value: 50 chars.
   - Built-in default: `long`.
   - Config default: `output.length` in `~/.summarize/config.json`.
-  - Output format is Markdown; use short paragraphs and only add bullets when they improve scanability.
+  - Output format is Markdown. Default URL summaries separate paragraphs, headings, and lists with blank lines; multi-point material uses descriptive headings or short bullets when they improve scanability.
 - `--force-summary`
   - Always run the LLM even when extracted content is shorter than the requested length.
 - `--max-output-tokens <count>`
@@ -117,6 +117,8 @@ installed, auto mode can use local CLI models via `cli.enabled` or implicit auto
 
 ## Prompt rules
 
+- Default URL summaries lead with a concise overview and organize multi-point material by theme, chronology, or viewpoint. Short or simple sources stay compact instead of forcing headings or lists.
+- Discussion and comment threads are synthesized around the main viewpoints, agreement, disagreement, evidence, and caveats rather than recapped comment by comment.
 - Video and podcast summaries omit sponsor/ads/promotional segments; do not include them in the summary.
 - Do not mention or acknowledge sponsors/ads, and do not say you skipped or ignored anything.
 - If a standout line is present, include 1-2 short exact excerpts formatted as Markdown italics with single asterisks. Do not use quotation marks of any kind (straight or curly). If a title or excerpt would normally use quotes, remove them and optionally italicize the text instead. Apostrophes in contractions are OK. Never include ad/sponsor/boilerplate excerpts and do not mention them. Avoid sponsor/ad/promo language, brand names like Squarespace, or CTA phrases like discount code.

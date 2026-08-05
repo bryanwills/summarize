@@ -2,6 +2,10 @@
 
 ## 0.21.9 - Unreleased
 
+### Fixes
+
+- Summaries: structure multi-point pages and discussion threads as scannable Markdown blocks instead of dense prose.
+
 ### Documentation
 
 - Rewrite the README as a concise front door to the CLI, browser extension, and task-focused guides.

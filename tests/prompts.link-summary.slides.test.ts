@@ -29,6 +29,10 @@ describe("buildLinkSummaryPrompt (slides)", () => {
     expect(prompt).toContain('add exactly "## Interlude" with no body');
     expect(prompt).not.toContain("leave that slide marker with no text");
     expect(prompt).toContain("Do not create a dedicated Slides section or list");
+    expect(prompt).toContain("Keep the response compact by avoiding blank lines");
+    expect(prompt).not.toContain("For a discussion or comment thread");
+    expect(prompt).not.toContain("Make multi-point summaries easy to scan");
+    expect(prompt).not.toContain("Use one blank line between Markdown blocks");
     expect(prompt).not.toContain("Include at least 3 headings");
   });
 });

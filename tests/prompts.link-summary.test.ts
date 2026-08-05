@@ -33,6 +33,42 @@ describe("buildLinkSummaryPrompt", () => {
     expect(prompt).not.toContain("Tweets from sharers:");
   });
 
+  it("adds source-aware, scannable Markdown guidance", () => {
+    const prompt = buildLinkSummaryPrompt({
+      url: "https://news.ycombinator.com/item?id=123",
+      title: "Discussion",
+      siteName: "Hacker News",
+      description: null,
+      content: "Article and comments",
+      truncated: false,
+      hasTranscript: false,
+      outputLanguage: { kind: "fixed", tag: "en", label: "English" },
+      summaryLength: "long",
+      shares: [],
+    });
+
+    expect(prompt).toContain(
+      "You summarize web pages, including articles, posts, and discussion threads",
+    );
+    expect(prompt).toContain("For an article or transcript, lead with the central claim");
+    expect(prompt).toContain("For a discussion or comment thread, synthesize the main viewpoints");
+    expect(prompt).toContain("areas of agreement, disagreement, evidence, and caveats");
+    expect(prompt).toContain(
+      "Do not recap comments one by one or organize the summary around usernames",
+    );
+    expect(prompt).toContain("Lead with a concise overview");
+    expect(prompt).toContain(
+      'descriptive Markdown headings using the "### " prefix and/or short bullet lists',
+    );
+    expect(prompt).toContain("never put a multi-point summary in one uninterrupted paragraph");
+    expect(prompt).toContain("For a short or simple source, do not force headings or lists");
+    expect(prompt).toContain("Use one blank line between Markdown blocks");
+    expect(prompt).toContain(
+      "Keep list items on consecutive lines with no blank lines between them",
+    );
+    expect(prompt).not.toContain("Keep the response compact by avoiding blank lines");
+  });
+
   it("adds a soft target when summary length is specified in characters", () => {
     const prompt = buildLinkSummaryPrompt({
       url: "https://example.com",
@@ -85,9 +121,7 @@ describe("buildLinkSummaryPrompt", () => {
     );
     expect(prompt).toContain('append a brief subsection titled "What sharers are saying"');
     expect(prompt).toContain("Use 2-5 short paragraphs.");
-    expect(prompt).toContain(
-      "Use short paragraphs; use bullet lists only when they improve scanability; avoid rigid templates.",
-    );
+    expect(prompt).toContain("Make multi-point summaries easy to scan");
   });
 
   it("keeps token map stable", () => {

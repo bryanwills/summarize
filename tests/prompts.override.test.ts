@@ -32,7 +32,10 @@ describe("prompt overrides", () => {
     expect(prompt).toContain("Source URL: https://example.com");
     expect(prompt).toContain("<content>");
     expect(prompt).toContain("Body");
-    expect(prompt).not.toContain("You summarize online articles");
+    expect(prompt).not.toContain("You summarize web pages");
+    expect(prompt).not.toContain("For a discussion or comment thread");
+    expect(prompt).not.toContain("Make multi-point summaries easy to scan");
+    expect(prompt).not.toContain("Use one blank line between Markdown blocks");
   });
 
   it("replaces file-text instructions and keeps inline content", () => {
@@ -144,10 +147,13 @@ describe("prompt overrides", () => {
     );
     expect(prompt).toContain('Every slide must include a headline line that starts with "## ".');
     expect(prompt).toContain('add exactly "## Interlude" with no body');
+    expect(prompt).toContain("Keep the response compact by avoiding blank lines");
     expect(prompt).toContain(
       'Final check for slides: every [slide:N] must be immediately followed by a line that starts with "## ".',
     );
-    expect(prompt).not.toContain("You summarize online videos");
+    expect(prompt).not.toContain("You summarize online videos and transcripts");
+    expect(prompt).not.toContain("For a discussion or comment thread");
+    expect(prompt).not.toContain("Use one blank line between Markdown blocks");
   });
 
   it("escapes untrusted content and context inside prompt tags", () => {
