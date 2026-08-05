@@ -4,6 +4,7 @@
 
 ### Fixes
 
+- Chrome extension: restore Video + Slides capture from toolbar-opened side panels by granting production builds the visible-tab access Chrome requires.
 - Summaries: structure multi-point pages and discussion threads as scannable Markdown blocks instead of dense prose.
 
 ### Documentation

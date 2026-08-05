@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import extensionConfig, {
-  resolveExtensionHostPermissions,
-} from "../apps/chrome-extension/wxt.config.js";
+import extensionConfig from "../apps/chrome-extension/wxt.config.js";
 
 describe("firefox extension manifest", () => {
   it("uses Firefox-compatible permissions and metadata", () => {
@@ -67,15 +65,16 @@ describe("firefox extension manifest", () => {
     }
   });
 
-  it("grants broad capture permission only to Firefox and HTTP E2E builds", () => {
-    expect(
-      resolveExtensionHostPermissions({ browser: "chrome", e2eHttpTransport: false }),
-    ).not.toContain("<all_urls>");
-    expect(
-      resolveExtensionHostPermissions({ browser: "chrome", e2eHttpTransport: true }),
-    ).toContain("<all_urls>");
-    expect(
-      resolveExtensionHostPermissions({ browser: "firefox", e2eHttpTransport: false }),
-    ).toContain("<all_urls>");
+  it("grants visible-tab capture access in Chrome and Firefox builds", () => {
+    const manifestFactory = (extensionConfig as { manifest?: unknown }).manifest;
+    if (typeof manifestFactory !== "function") {
+      throw new Error("Missing manifest factory in WXT config");
+    }
+
+    const chromeManifest = manifestFactory({ browser: "chrome" }) as Record<string, unknown>;
+    const firefoxManifest = manifestFactory({ browser: "firefox" }) as Record<string, unknown>;
+
+    expect(chromeManifest.host_permissions).toEqual(["<all_urls>", "http://127.0.0.1/*"]);
+    expect(firefoxManifest.host_permissions).toEqual(["<all_urls>", "http://127.0.0.1/*"]);
   });
 });

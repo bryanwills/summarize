@@ -6,18 +6,8 @@ import { resolveTransformersRuntimeAssets } from "./scripts/transformers-runtime
 const targetBrowser = process.env.BROWSER === "firefox" ? "firefox" : "chrome";
 const e2eHttpTransport = process.env.SUMMARIZE_E2E_HTTP_TRANSPORT === "1";
 
-export function resolveExtensionHostPermissions({
-  browser,
-  e2eHttpTransport: enableE2eHttpTransport,
-}: {
-  browser: "chrome" | "firefox";
-  e2eHttpTransport: boolean;
-}): string[] {
-  if (browser === "firefox" || enableE2eHttpTransport) {
-    return ["<all_urls>", "http://127.0.0.1/*"];
-  }
-  return ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"];
-}
+// `captureVisibleTab()` needs literal `<all_urls>` because side-panel action toggles do not grant `activeTab`.
+const extensionHostPermissions = ["<all_urls>", "http://127.0.0.1/*"];
 
 const extensionVersion = (() => {
   try {
@@ -117,10 +107,7 @@ export default defineConfig({
       ],
       optional_permissions:
         browser === "firefox" ? ["userScripts"] : ["nativeMessaging", "userScripts"],
-      host_permissions: resolveExtensionHostPermissions({
-        browser,
-        e2eHttpTransport,
-      }),
+      host_permissions: extensionHostPermissions,
       ...(browser === "firefox"
         ? {}
         : {

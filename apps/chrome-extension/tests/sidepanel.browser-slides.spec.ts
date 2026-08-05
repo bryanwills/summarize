@@ -26,6 +26,10 @@ test("sidepanel captures local video slides through the visible-tab fallback", a
   browserName: _browserName,
 }, testInfo) => {
   test.setTimeout(90_000);
+  test.skip(
+    process.env.SUMMARIZE_E2E_HTTP_TRANSPORT === "1",
+    "Browser slide capture is validated against the production manifest.",
+  );
 
   if (testInfo.project.name === "firefox") {
     test.skip(true, "Browser slide capture is validated in Chromium.");
