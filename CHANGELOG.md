@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.21.12 - Unreleased
+
 ## 0.21.11 - 2026-08-10
 
 **Highlight:** a security pass — five high-severity advisories cleared from the
