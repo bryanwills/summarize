@@ -5,9 +5,17 @@ import type { parseGatewayStyleModelId } from "../llm/model-id.js";
 import type { ModelRequestOptions } from "../llm/model-options.js";
 import type { Prompt } from "../llm/prompt.js";
 
+const GOOGLE_DEVELOPER_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
+
+function isCustomGoogleBaseUrl(raw: string | null | undefined): boolean {
+  const normalized = raw?.trim().replace(/\/+$/, "");
+  return Boolean(normalized && normalized !== GOOGLE_DEVELOPER_API_BASE_URL);
+}
+
 export async function resolveModelIdForLlmCall({
   parsedModel,
   apiKeys,
+  googleBaseUrlOverride,
   fetchImpl,
   timeoutMs,
 }: {
@@ -15,6 +23,7 @@ export async function resolveModelIdForLlmCall({
   apiKeys: {
     googleApiKey: string | null;
   };
+  googleBaseUrlOverride?: string | null;
   fetchImpl: typeof fetch;
   timeoutMs: number;
 }): Promise<{ modelId: string; note: string | null; forceStreamOff: boolean }> {
@@ -24,6 +33,10 @@ export async function resolveModelIdForLlmCall({
 
   const key = apiKeys.googleApiKey;
   if (!key) {
+    return { modelId: parsedModel.canonical, note: null, forceStreamOff: false };
+  }
+
+  if (isCustomGoogleBaseUrl(googleBaseUrlOverride)) {
     return { modelId: parsedModel.canonical, note: null, forceStreamOff: false };
   }
 
