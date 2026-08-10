@@ -1,6 +1,20 @@
 # Changelog
 
-## 0.21.11 - Unreleased
+## 0.21.11 - 2026-08-10
+
+**Highlight:** a security pass — five high-severity advisories cleared from the
+dependency graph, and the two that have no upstream fix (`image-size` parser
+loops) are now neutralized by a local patch with regression coverage.
+
+### Security
+
+- Clear five high-severity advisories: `fast-uri` host confusion (dev-only here; the SSRF guard uses native WHATWG URL parsing and now carries backslash-authority regression coverage), `js-yaml` quadratic CPU in `!!omap` resolution (CVE-2026-59870), `brace-expansion` unbounded-expansion DoS (both major lines), and `nanoid` zero-size generator loop.
+- Neutralize the two unpatched `image-size` ICNS/JXL/HEIF infinite-loop advisories (dev-only under `web-ext`/`addons-linter`) with a checked-in pnpm patch and a timeout-isolated regression test. The audit deliberately still reports the version match — the advisory is fixed locally, not silenced.
+
+### Dependencies and maintenance
+
+- Migrate the build to TypeScript 7 across all workspaces, porting the import-cycle gate to an Oxc-based checker proven against static imports, re-exports, dynamic imports, import types, and a deliberately introduced cycle.
+- Refresh mediabunny, markdansi, undici, and the oxc toolchain, plus the transitive Babel/acorn/postcss graph.
 
 ## 0.21.10 - 2026-08-09
 
