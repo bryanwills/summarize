@@ -1,10 +1,10 @@
 # Changelog
 
-## 0.21.10 - Unreleased
+## 0.21.10 - 2026-08-09
 
 ### Fixes
 
-- Google custom endpoints: skip Gemini Developer API model discovery before inference so endpoint-scoped credentials reach the configured provider (#384, thanks @alfozan).
+- Google custom endpoints: skip Gemini Developer API model discovery before inference, so endpoint-scoped credentials reach the endpoint you configured. Previously any Google key triggered discovery against the hard-coded Developer API first, and a Vertex-scoped or proxied key failed there before your `GOOGLE_BASE_URL` was ever contacted. Discovery still runs when the endpoint is unset or explicitly the Developer API. Note that a custom endpoint now validates its own model IDs (#384, thanks @alfozan).
 
 ## 0.21.9 - 2026-08-08
 
