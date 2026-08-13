@@ -3,6 +3,11 @@ packages:
   - packages/*
   - apps/*
 
+allowBuilds:
+  "@google/genai": true
+  onnxruntime-node: true
+  protobufjs: true
+
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - "@earendil-works/pi-ai@0.79.1"
