@@ -2,6 +2,14 @@
 
 ## 0.21.12 - Unreleased
 
+### Security
+
+- Pin patched nanoid transitives to fix GHSA-2v37-7h3g-55p8 while preserving the tested local image-size security fixes.
+
+### Dependencies and maintenance
+
+- Refresh policy-eligible CLI, core, extension, media, test, lint, and transitive dependencies without bypassing the seven-day stabilization window.
+
 ## 0.21.11 - 2026-08-10
 
 **Highlight:** a security pass — five high-severity advisories cleared from the
