@@ -2,6 +2,12 @@
 
 ## 0.21.12 - Unreleased
 
+### Fixes
+
+- FAL transcription: clear settled deadlines and stop local queue polling and retries after timeout (#392, thanks @vincent-peng).
+- Content extraction: decode HTML entities once so deliberately escaped markup remains literal text (#394, thanks @devYRPauli).
+- Content extraction: avoid splitting UTF-16 surrogate pairs when clipping to a character budget (#391, thanks @devYRPauli).
+
 ### Security
 
 - Pin patched nanoid transitives to fix GHSA-2v37-7h3g-55p8 while preserving the tested local image-size security fixes.
