@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.21.13 - Unreleased
+## 0.21.13 - 2026-09-07
 
 **Highlights:** browser media reliability fixes and stabilized dependency updates.
 
