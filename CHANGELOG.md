@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.21.14 - Unreleased
+## 0.21.14 - 2026-09-11
 
 **Highlights:** correct podcast episode selection for non-Latin titles and stabilized network/media reliability updates.
 
