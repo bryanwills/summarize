@@ -7,6 +7,7 @@
 - ONNX transcription: keep staged audio available until inference exits and discard interrupted model downloads so retries cannot reuse partial artifacts.
 - CLI: preserve unrelated host logging globals, including read-only AI SDK settings.
 - Refresh Free: honor `FORCE_COLOR=0` and use the same color-override precedence as the rest of the CLI.
+- Browser automation: detect immediate User Scripts execution support and give older Chrome versions an accurate upgrade requirement.
 - Cache statistics: close SQLite connections after failed reads and ignore invalid cache-kind names.
 - Maintenance: refresh stabilized Pi AI, tokentally, Playwright, and Bun tooling, enforce formatting in CI, and reuse the installation build.
 - Development: update stabilized Chrome typings, reuse Vitest source transforms between runs, and keep automatic worker counts within the available CPU budget.
